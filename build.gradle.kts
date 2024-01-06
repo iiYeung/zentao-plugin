@@ -23,6 +23,9 @@ repositories {
 
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/platforms.html#sub:version-catalog
 dependencies {
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.beust:klaxon:5.5")
+    implementation("com.google.code.gson:gson:2.10.1")
 //    implementation(libs.annotations)
 }
 
