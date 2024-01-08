@@ -5,54 +5,54 @@ import com.github.darylyeung.zentaoplugin.common.Constant
 import com.github.darylyeung.zentaoplugin.model.TokenResponse
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.ui.DialogPanel
+import com.intellij.openapi.wm.ToolWindow
+import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.jetbrains.annotations.ApiStatus
 
 /**
  * @author Yeung
  * @version v1.0
  * @date 2024-01-06 11:49:29
  */
-class LoginPanel(displayName: String, helpTopic: String?) :
-    BoundConfigurable(displayName, helpTopic) {
-
-    private var serverUrl = ""
-    private var account = ""
-    private var password = ""
-
-    override fun createPanel(): DialogPanel {
-        return panel {
-            val serverUrlRow = row("Server Url") {
-                textField().bindText(::serverUrl)
+class LoginPanel {
+    private val model = Model()
+    fun createPanel(toolWindow: ToolWindow): DialogPanel {
+        lateinit var panel: DialogPanel
+         panel = panel {
+            row("Server Url") {
+                textField().bindText(model::serverUrl)
                 label("example: http://zentao.com")
             }
-            val accountRow = row("Username") {
-                textField().bindText(::account)
+            row("Username") {
+                textField().bindText(model::account)
             }
-            val pwdRow = row("Password") {
-                passwordField().bindText(::password)
+            row("Password") {
+                passwordField().bindText(model::password)
             }
 
             row {
                 button("Submit") {
-                    thisLogger().info("serverUrl: ${serverUrl.trim()},username: ${account.trim()},password: ${password.trim()}")
+                    panel.apply()
+                    thisLogger().info("serverUrl: ${model.serverUrl},username: ${model.account},password: ${model.password}")
                     //  get token
-                    if (loginSuccessful(serverUrl.trim(), account.trim(), password.trim())) {
+                    if (loginSuccessful(model.serverUrl, model.account, model.password)) {
                         thisLogger().info("login successful")
-//                        toolWindow.contentManager.removeAllContents(true)
-//                        val listPanel = ProductListPanel().createListPanel(toolWindow)
-//                        val content = ContentFactory.getInstance().createContent(listPanel, null, false)
-//                        toolWindow.contentManager.addContent(content)
+                        toolWindow.contentManager.removeAllContents(true)
+                        val listPanel = ProductListPanel().createListPanel(toolWindow)
+                        val content = ContentFactory.getInstance().createContent(listPanel, null, false)
+                        toolWindow.contentManager.addContent(content)
                     }
                 }
             }
         }
+        return panel
     }
 
     private fun loginSuccessful(serverUrl: String, username: String, password: String): Boolean {
@@ -81,5 +81,12 @@ class LoginPanel(displayName: String, helpTopic: String?) :
             return false
         }
     }
+
+    @ApiStatus.Internal
+    internal data class Model(
+        var serverUrl: String = "",
+        var account: String = "",
+        var password: String = ""
+    )
 }
 

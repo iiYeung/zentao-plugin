@@ -24,7 +24,7 @@ class MyToolWindowFactory : ToolWindowFactory {
             return
         }
         //  create login panel
-        val loginPanel = LoginPanel().createLoginPanel(toolWindow)
+        val loginPanel = LoginPanel().createPanel(toolWindow)
         //  add login panel to tool window
         val content = ContentFactory.getInstance().createContent(loginPanel, null, false)
         toolWindow.contentManager.addContent(content)

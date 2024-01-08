@@ -8,4 +8,5 @@ package com.github.darylyeung.zentaoplugin.common
 enum class Constant(val value: String) {
     TOKEN_KEY("token"),
     SERVER_URL_KEY("serverUrl"),
+    USER_ACCOUNT("userAccount"),
 }
