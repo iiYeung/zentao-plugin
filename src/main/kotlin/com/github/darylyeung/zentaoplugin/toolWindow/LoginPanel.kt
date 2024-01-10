@@ -25,7 +25,7 @@ class LoginPanel {
     private val model = Model()
     fun createPanel(toolWindow: ToolWindow): DialogPanel {
         lateinit var panel: DialogPanel
-         panel = panel {
+        panel = panel {
             row("Server Url") {
                 textField().bindText(model::serverUrl)
                 label("example: http://zentao.com")
@@ -55,7 +55,7 @@ class LoginPanel {
         return panel
     }
 
-    private fun loginSuccessful(serverUrl: String, username: String, password: String): Boolean {
+    public fun loginSuccessful(serverUrl: String, username: String, password: String): Boolean {
         val client = OkHttpClient()
         val json = "{\"account\":\"$username\",\"password\":\"$password\"}"
         val body = json.toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
