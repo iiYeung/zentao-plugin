@@ -1,11 +1,12 @@
 package com.github.darylyeung.zentaoplugin.toolWindow
 
-import com.github.darylyeung.zentaoplugin.action.OpenTaskDialog
 import com.github.darylyeung.zentaoplugin.common.Constant
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.tasks.TaskManager
+import com.intellij.tasks.impl.LocalTaskImpl
+import com.intellij.tasks.impl.TaskManagerImpl
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -70,11 +71,13 @@ class BugListPanel {
                 val title = table.getValueAt(selectedRow, 1).toString()
 //                OpenTaskDialog(DefaultProjectFactory.getInstance().defaultProject, LocalTaskImpl(id, title))().show()
                 val project = toolWindow.project
-                val manager = TaskManager.getManager(project)
-                OpenTaskDialog(
-                    toolWindow.project,
-                    manager.createLocalTask(title)
-                ).show()
+                val manager = TaskManager.getManager(project) as? TaskManagerImpl
+                manager?.activateTask(LocalTaskImpl(manager.createLocalTask("$id:$title")), true, true)
+
+//                OpenTaskDialog(
+//                    toolWindow.project,
+//                    manager.createLocalTask(title)
+//                ).show()
             }
 //            table.addMouseListener(object : MouseAdapter() {
 //                override fun mouseClicked(e: MouseEvent?) {

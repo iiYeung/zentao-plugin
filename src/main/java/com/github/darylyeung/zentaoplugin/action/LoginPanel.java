@@ -1,6 +1,5 @@
 package com.github.darylyeung.zentaoplugin.action;
 
-import com.github.darylyeung.zentaoplugin.toolWindow.LoginPanel2;
 import com.github.darylyeung.zentaoplugin.toolWindow.ProductListPanel;
 import com.intellij.openapi.ui.DialogPanel;
 import com.intellij.openapi.wm.ToolWindow;
@@ -33,12 +32,12 @@ public class LoginPanel {
             String serverUrlText = serverUrl.getText();
             String accountText = account.getText();
             String passwordText = password.getText();
-            if (new LoginPanel2().loginSuccessful(serverUrlText, accountText, passwordText)) {
-                toolWindow.getContentManager().removeAllContents(true);
-                JPanel listPanel = new ProductListPanel().createListPanel(toolWindow);
-                Content content = ContentFactory.getInstance().createContent(listPanel, "", false);
-                toolWindow.getContentManager().addContent(content);
-            }
+//            if (new LoginPanel().loginSuccessful(serverUrlText, accountText, passwordText)) {
+//                toolWindow.getContentManager().removeAllContents(true);
+//                JPanel listPanel = new ProductListPanel().createListPanel(toolWindow);
+//                Content content = ContentFactory.getInstance().createContent(listPanel, "", false);
+//                toolWindow.getContentManager().addContent(content);
+//            }
         });
         return dialogPanel;
     }
