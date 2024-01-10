@@ -6,11 +6,16 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.java</depends>
+    <depends>com.intellij.tasks</depends>
 
     <resource-bundle>messages.MyBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow factoryClass="com.github.darylyeung.zentaoplugin.toolWindow.MyToolWindowFactory" id="zentao"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="com.intellij.tasks">
+        <repositoryType implementation="com.github.darylyeung.zentaoplugin.extension.zentao.ZentaoRepositoryType"/>
     </extensions>
 
     <applicationListeners>
