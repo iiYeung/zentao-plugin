@@ -20,7 +20,7 @@ public class ZentaoRepositoryType extends BaseRepositoryType<ZentaoRepository> {
 
     @Override
     public @NotNull Icon getIcon() {
-        return TasksCoreIcons.ZenTao;
+        return TasksCoreIcons.Zentao;
     }
 
     @Override

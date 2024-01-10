@@ -15,8 +15,5 @@ public final class TasksCoreIcons {
         return IconManager.getInstance().loadRasterizedIcon(path, TasksCoreIcons.class.getClassLoader(), cacheKey, flags);
     }
 
-    /**
-     * 16x16
-     */
-    public static final @NotNull Icon ZenTao = load("icons/zentao.svg", 842371061, 0);
+    /** 16x16 */ public static final @NotNull Icon Zentao = load("icons/zentao.svg", -995420501, 0);
 }
