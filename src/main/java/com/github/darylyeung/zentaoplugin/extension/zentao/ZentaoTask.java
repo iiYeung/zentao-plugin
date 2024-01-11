@@ -1,8 +1,12 @@
 package com.github.darylyeung.zentaoplugin.extension.zentao;
 
+import com.github.darylyeung.zentaoplugin.extension.icons.TasksCoreIcons;
+import com.github.darylyeung.zentaoplugin.extension.zentao.model.ZentaoBug;
+import com.github.darylyeung.zentaoplugin.extension.zentao.model.ZentaoProduct;
 import com.intellij.tasks.Comment;
 import com.intellij.tasks.Task;
 import com.intellij.tasks.TaskType;
+import lombok.Data;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -15,15 +19,34 @@ import java.util.Date;
  * @version v1.0
  * @date 2024-01-10 23:17:51
  */
+@Data
 public class ZentaoTask extends Task {
+
+    private final ZentaoRepository repository;
+    private final ZentaoProduct zentaoProduct;
+    private final ZentaoBug zentaoBug;
+
+    public ZentaoTask(@NotNull ZentaoRepository repository, @NotNull ZentaoBug zentaoBug) {
+        this.repository = repository;
+        this.zentaoBug = zentaoBug;
+
+        ZentaoProduct product = null;
+        for (ZentaoProduct p : repository.getProducts()) {
+            if (p.getId() == zentaoBug.getProject()) {
+                product = p;
+            }
+        }
+        zentaoProduct = product;
+    }
+
     @Override
     public @NotNull String getId() {
-        return null;
+        return String.valueOf(zentaoBug.getId());
     }
 
     @Override
     public @Nls @NotNull String getSummary() {
-        return null;
+        return zentaoBug.getTitle();
     }
 
     @Override
@@ -38,12 +61,12 @@ public class ZentaoTask extends Task {
 
     @Override
     public @NotNull Icon getIcon() {
-        return null;
+        return TasksCoreIcons.Zentao;
     }
 
     @Override
     public @NotNull TaskType getType() {
-        return null;
+        return TaskType.BUG;
     }
 
     @Override
