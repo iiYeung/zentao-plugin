@@ -1,15 +1,15 @@
 package com.github.darylyeung.zentaoplugin.services
 
+import com.github.darylyeung.zentaoplugin.ZentaoBundle
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
-import com.github.darylyeung.zentaoplugin.MyBundle
 
 @Service(Service.Level.PROJECT)
 class MyProjectService(project: Project) {
 
     init {
-        thisLogger().info(MyBundle.message("projectService", project.name))
+        thisLogger().info(ZentaoBundle.message("projectService", project.name))
         thisLogger().warn("Don't forget to remove all non-needed sample code files with their corresponding registration entries in `plugin.xml`.")
     }
 
