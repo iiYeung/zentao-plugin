@@ -69,6 +69,11 @@ public class ZentaoRepository extends NewBaseRepositoryImpl {
         return new ZentaoRepository(this);
     }
 
+    @Override
+    public Task[] getIssues(@Nullable String query, int offset, int limit, boolean withClosed) throws Exception {
+        return super.getIssues(query, offset, limit, withClosed);
+    }
+
     @NotNull
     public List<ZentaoProduct> getProducts() {
         try {
