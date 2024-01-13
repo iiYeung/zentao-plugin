@@ -9,6 +9,7 @@ import com.intellij.tasks.TaskRepositoryType;
 import com.intellij.tasks.impl.BaseRepository;
 import com.intellij.tasks.impl.httpclient.NewBaseRepositoryImpl;
 import com.intellij.tasks.impl.httpclient.TaskResponseUtil;
+import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.xmlb.annotations.Tag;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.HttpGet;
@@ -71,7 +72,30 @@ public class ZentaoRepository extends NewBaseRepositoryImpl {
 
     @Override
     public Task[] getIssues(@Nullable String query, int offset, int limit, boolean withClosed) throws Exception {
-        return super.getIssues(query, offset, limit, withClosed);
+        final List<ZentaoBug> bugs = fetchBugs((offset / limit) + 1, limit, !withClosed);
+        return ContainerUtil.map2Array(bugs, ZentaoTask.class, issue -> new ZentaoTask(this, issue));
+    }
+
+    private List<ZentaoBug> fetchBugs(int pageNumber, int pageSize, boolean openedOnly) throws Exception {
+        ensureProjectsDiscovered();
+        final URIBuilder uriBuilder = new URIBuilder(getBugsUrl())
+                .addParameter("page", String.valueOf(pageNumber))
+                .addParameter("per_page", String.valueOf(pageSize))
+                // Ordering was added in v7.8
+                .addParameter("order_by", "updated_at");
+        if (openedOnly) {
+            // Filtering by state was added in v7.3
+            uriBuilder.addParameter("state", "opened");
+        }
+        final ResponseHandler<List<ZentaoBug>> handler = new TaskResponseUtil.GsonMultipleObjectsDeserializer<>(new Gson(), LIST_OF_BUGS_TYPE);
+        return getHttpClient().execute(new HttpGet(uriBuilder.build()), handler);
+    }
+
+    private String getBugsUrl() {
+        if (myCurrentProduct != null && myCurrentProduct != UNSPECIFIED_PRODUCT) {
+            return getRestApiUrl("projects", myCurrentProduct.getId(), "issues");
+        }
+        return getRestApiUrl("issues");
     }
 
     @NotNull
