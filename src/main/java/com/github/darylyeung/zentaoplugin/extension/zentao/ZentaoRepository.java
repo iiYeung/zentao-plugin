@@ -1,7 +1,9 @@
 package com.github.darylyeung.zentaoplugin.extension.zentao;
 
+import com.github.darylyeung.zentaoplugin.common.ZentaoConstant;
 import com.github.darylyeung.zentaoplugin.extension.zentao.model.ZentaoBug;
 import com.github.darylyeung.zentaoplugin.extension.zentao.model.ZentaoProduct;
+import com.github.darylyeung.zentaoplugin.util.ZentaoUtil;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.intellij.tasks.Task;
@@ -11,13 +13,13 @@ import com.intellij.tasks.impl.httpclient.NewBaseRepositoryImpl;
 import com.intellij.tasks.impl.httpclient.TaskResponseUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.xmlb.annotations.Tag;
+import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.utils.URIBuilder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -114,28 +116,30 @@ public class ZentaoRepository extends NewBaseRepositoryImpl {
         }
     }
 
+    @Override
+    public @NotNull String getRestApiPathPrefix() {
+        return "/api.php/v1";
+    }
+
+    @Nullable
+    @Override
+    protected HttpRequestInterceptor createRequestInterceptor() {
+        return (request, context) -> request.addHeader(ZentaoConstant.TOKEN.getCode(), myPassword);
+    }
+
     /**
      * Always forcibly attempt to fetch new projects from server.
      */
     @NotNull
     public List<ZentaoProduct> fetchProducts() throws Exception {
-        final ResponseHandler<List<ZentaoProduct>> handler = new TaskResponseUtil.GsonMultipleObjectsDeserializer<>(new Gson(), LIST_OF_PRODUCTS_TYPE);
-        final String projectUrl = getRestApiUrl("projects");
-        final List<ZentaoProduct> result = new ArrayList<>();
-        int pageNum = 1;
-        while (true) {
-            final URIBuilder paginatedProjectsUrl = new URIBuilder(projectUrl).addParameter("page", String.valueOf(pageNum)).addParameter("per_page", "30");
-            // In v4 this endpoint otherwise returns all projects visible to the current user
-            paginatedProjectsUrl.addParameter("membership", "true");
-            final List<ZentaoProduct> page = getHttpClient().execute(new HttpGet(paginatedProjectsUrl.build()), handler);
-            // Gitlab's REST API doesn't allow to know beforehand how many projects are available
-            if (page.isEmpty()) {
-                break;
-            }
-            result.addAll(page);
-            pageNum++;
+        final ResponseHandler<List<ZentaoProduct>> handler = new TaskResponseUtil.GsonMultipleObjectsDeserializer<>(ZentaoUtil.GSON, LIST_OF_PRODUCTS_TYPE);
+        final String productUrl = getRestApiUrl("products");
+        final URIBuilder paginatedProjectsUrl = new URIBuilder(productUrl);
+        final List<ZentaoProduct> page = getHttpClient().execute(new HttpGet(paginatedProjectsUrl.build()), handler);
+        if (page.isEmpty()) {
+            return Collections.emptyList();
         }
-        myProducts = result;
+        myProducts = page;
         return Collections.unmodifiableList(myProducts);
     }
 
