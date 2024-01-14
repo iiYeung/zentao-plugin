@@ -25,7 +25,6 @@ repositories {
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.beust:klaxon:5.5")
-    implementation("com.google.code.gson:gson:2.10.1")
     compileOnly("org.projectlombok:lombok:1.18.30")
 //    implementation(libs.annotations)
 }
