@@ -1,9 +1,8 @@
 package com.github.darylyeung.zentaoplugin.extension.zentao.model;
 
-import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +40,7 @@ public class ZentaoProduct {
     private String lineName;
     private String programName;
     private String programPM;
-    private Map<String, Integer> stories;
+    private Map<String, Object> stories;
     private Map<String, Object> requirements;
     private int plans;
     private int releases;
@@ -277,11 +276,11 @@ public class ZentaoProduct {
         this.programPM = programPM;
     }
 
-    public Map<String, Integer> getStories() {
+    public Map<String, Object> getStories() {
         return stories;
     }
 
-    public void setStories(Map<String, Integer> stories) {
+    public void setStories(Map<String, Object> stories) {
         this.stories = stories;
     }
 

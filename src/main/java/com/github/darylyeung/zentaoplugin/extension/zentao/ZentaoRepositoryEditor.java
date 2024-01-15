@@ -28,6 +28,12 @@ public class ZentaoRepositoryEditor extends BaseRepositoryEditor<ZentaoRepositor
         super(project, repository, changeListener);
     }
 
+
+    @Override
+    public void apply() {
+        super.apply();
+    }
+
     private final class FetchProjectsTask extends TaskUiUtil.ComboBoxUpdater<ZentaoProduct> {
         private FetchProjectsTask() {
             super(ZentaoRepositoryEditor.this.myProject, ZentaoBundle.message("progress.title.downloading.zentao.products"), myProductComboBox);

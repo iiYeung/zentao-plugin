@@ -1,6 +1,5 @@
 package com.github.darylyeung.zentaoplugin.common;
 
-import lombok.Getter;
 
 /**
  * @author Yeung

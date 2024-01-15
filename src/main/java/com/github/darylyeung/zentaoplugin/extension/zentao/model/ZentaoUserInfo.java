@@ -1,8 +1,5 @@
 package com.github.darylyeung.zentaoplugin.extension.zentao.model;
 
-import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 
 /**
  * @author Yeung
@@ -44,6 +41,14 @@ public class ZentaoUserInfo {
     }
 
     public void setRealname(String realname) {
+        this.realname = realname;
+    }
+
+
+    public ZentaoUserInfo(int id, String account, String avatar, String realname) {
+        this.id = id;
+        this.account = account;
+        this.avatar = avatar;
         this.realname = realname;
     }
 }
