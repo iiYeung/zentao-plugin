@@ -5,7 +5,6 @@
     <vendor>darylyeung</vendor>
 
     <depends>com.intellij.modules.platform</depends>
-    <depends>com.intellij.java</depends>
     <depends>com.intellij.tasks</depends>
 
     <resource-bundle>messages.ZentaoBundle</resource-bundle>

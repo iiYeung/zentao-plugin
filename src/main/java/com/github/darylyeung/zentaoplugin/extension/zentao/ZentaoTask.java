@@ -6,7 +6,6 @@ import com.github.darylyeung.zentaoplugin.extension.zentao.model.ZentaoProduct;
 import com.intellij.tasks.Comment;
 import com.intellij.tasks.Task;
 import com.intellij.tasks.TaskType;
-import lombok.Data;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -19,15 +18,11 @@ import java.util.Date;
  * @version v1.0
  * @date 2024-01-10 23:17:51
  */
-@Data
 public class ZentaoTask extends Task {
 
-    private final ZentaoRepository repository;
-    private final ZentaoProduct zentaoProduct;
     private final ZentaoBug zentaoBug;
 
     public ZentaoTask(@NotNull ZentaoRepository repository, @NotNull ZentaoBug zentaoBug) {
-        this.repository = repository;
         this.zentaoBug = zentaoBug;
 
         ZentaoProduct product = null;
@@ -36,7 +31,7 @@ public class ZentaoTask extends Task {
                 product = p;
             }
         }
-        zentaoProduct = product;
+        ZentaoProduct zentaoProduct = product;
     }
 
     @Override

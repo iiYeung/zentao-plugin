@@ -5,7 +5,6 @@ import com.intellij.openapi.ui.DialogPanel;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
-import lombok.extern.slf4j.Slf4j;
 
 import javax.swing.*;
 
@@ -14,7 +13,6 @@ import javax.swing.*;
  * @version v1.0
  * @date 2024-01-09 11:13:36
  */
-@Slf4j
 public class LoginPanel {
     private JButton Submit;
     private JTextField serverUrl;
