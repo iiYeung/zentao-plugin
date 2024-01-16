@@ -60,6 +60,10 @@ public class ZentaoRepository extends NewBaseRepositoryImpl {
         return unspecified;
     }
 
+    public ZentaoRepository(){
+        super();
+    }
+
     public ZentaoRepository(ZentaoRepository other) {
         super(other);
         myCurrentProduct = other.myCurrentProduct;
