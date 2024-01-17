@@ -11,6 +11,7 @@ import com.intellij.tasks.impl.httpclient.NewBaseRepositoryImpl;
 import com.intellij.tasks.impl.httpclient.TaskResponseUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.xmlb.annotations.Tag;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.methods.HttpGet;
@@ -26,6 +27,7 @@ import java.net.URISyntaxException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static com.github.darylyeung.zentaoplugin.util.ZentaoUtil.GSON;
 
@@ -60,7 +62,7 @@ public class ZentaoRepository extends NewBaseRepositoryImpl {
         return unspecified;
     }
 
-    public ZentaoRepository(){
+    public ZentaoRepository() {
         super();
     }
 
@@ -103,7 +105,11 @@ public class ZentaoRepository extends NewBaseRepositoryImpl {
         }
         final ResponseHandler<ZentaoBugPage> handler = new TaskResponseUtil.GsonSingleObjectDeserializer<>(new Gson(), ZentaoBugPage.class);
         ZentaoBugPage page = getHttpClient().execute(new HttpGet(uriBuilder.build()), handler);
-        return page.getBugs();
+        if (CollectionUtils.isEmpty(page.getBugs())) {
+            return Collections.emptyList();
+        }
+        //  filter my bugs
+        return page.getBugs().stream().filter(i -> Objects.equals(i.getAssignedTo().getAccount(), myUsername)).collect(Collectors.toList());
     }
 
     private String getBugsUrl() {
