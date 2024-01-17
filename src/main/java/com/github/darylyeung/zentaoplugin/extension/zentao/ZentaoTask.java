@@ -5,6 +5,7 @@ import com.github.darylyeung.zentaoplugin.extension.zentao.model.ZentaoBug;
 import com.github.darylyeung.zentaoplugin.extension.zentao.model.ZentaoProduct;
 import com.intellij.tasks.Comment;
 import com.intellij.tasks.Task;
+import com.intellij.tasks.TaskRepository;
 import com.intellij.tasks.TaskType;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
@@ -20,10 +21,13 @@ import java.util.Date;
  */
 public class ZentaoTask extends Task {
 
-    private final ZentaoBug zentaoBug;
+    private final ZentaoProduct myZentaoProduct;
+    private final ZentaoRepository myZentaoRepository;
+    private final ZentaoBug myZentaoBug;
 
     public ZentaoTask(@NotNull ZentaoRepository repository, @NotNull ZentaoBug zentaoBug) {
-        this.zentaoBug = zentaoBug;
+        myZentaoBug = zentaoBug;
+        myZentaoRepository = repository;
 
         ZentaoProduct product = null;
         for (ZentaoProduct p : repository.getProducts()) {
@@ -31,17 +35,23 @@ public class ZentaoTask extends Task {
                 product = p;
             }
         }
-        ZentaoProduct zentaoProduct = product;
+        myZentaoProduct = product;
     }
 
     @Override
     public @NotNull String getId() {
-        return String.valueOf(zentaoBug.getId());
+        return String.valueOf(myZentaoBug.getId());
+    }
+
+    @NotNull
+    @Override
+    public String getPresentableId() {
+        return String.valueOf(myZentaoBug.getId());
     }
 
     @Override
     public @Nls @NotNull String getSummary() {
-        return zentaoBug.getTitle();
+        return myZentaoBug.getTitle();
     }
 
     @Override
@@ -81,11 +91,21 @@ public class ZentaoTask extends Task {
 
     @Override
     public boolean isIssue() {
-        return false;
+        return true;
     }
 
     @Override
     public @Nullable String getIssueUrl() {
         return null;
+    }
+
+    @Override
+    public @Nullable String getProject() {
+        return myZentaoProduct == null ? null : myZentaoProduct.getName();
+    }
+
+    @Override
+    public @Nullable TaskRepository getRepository() {
+        return myZentaoRepository;
     }
 }
