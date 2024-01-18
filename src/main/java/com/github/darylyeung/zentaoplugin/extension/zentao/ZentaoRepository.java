@@ -43,11 +43,6 @@ public class ZentaoRepository extends NewBaseRepositoryImpl {
     private ZentaoProduct myCurrentProduct;
 
     private List<ZentaoProduct> myProducts = null;
-    //    private static final Gson GSON = TaskGsonUtil.createDefaultBuilder().create();
-
-    private static final TypeToken<List<ZentaoProduct>> LIST_OF_PRODUCTS_TYPE = new TypeToken<>() {};
-
-    private static final TypeToken<List<ZentaoBug>> LIST_OF_BUGS_TYPE = new TypeToken<>() {};
 
     public static final ZentaoProduct UNSPECIFIED_PRODUCT = createUnspecifiedProduct();
 
