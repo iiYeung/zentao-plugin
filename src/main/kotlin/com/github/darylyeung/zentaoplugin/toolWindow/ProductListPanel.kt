@@ -1,11 +1,11 @@
 package com.github.darylyeung.zentaoplugin.toolWindow
 
-import com.beust.klaxon.Klaxon
 import com.github.darylyeung.zentaoplugin.common.Constant
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.content.ContentFactory
+import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.awt.event.MouseAdapter
@@ -36,10 +36,10 @@ class ProductListPanel {
         if (response.isSuccessful) {
             val result = response.body?.string().toString()
             thisLogger().info("request Successful. Response: $result")
-            val response = Klaxon().parse<ApiResponse>(result)
+            val response = Json.decodeFromString<ApiResponse>(result)
             val columnNames = arrayOf("ID", "Name", "Status")
-            val rowData = response?.products?.map { product -> arrayOf(product.id, product.name, product.status) }
-                ?.toTypedArray()
+            val rowData = response.products.map { product -> arrayOf(product.id, product.name, product.status) }
+                .toTypedArray()
             val listPanel = DefaultTableModel(rowData, columnNames)
             val table = JTable(listPanel)
 

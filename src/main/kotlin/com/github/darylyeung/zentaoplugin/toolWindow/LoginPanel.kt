@@ -1,6 +1,5 @@
 package com.github.darylyeung.zentaoplugin.toolWindow
 
-import com.beust.klaxon.Klaxon
 import com.github.darylyeung.zentaoplugin.common.Constant
 import com.github.darylyeung.zentaoplugin.model.TokenResponse
 import com.intellij.ide.util.PropertiesComponent
@@ -10,6 +9,7 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.ui.content.ContentFactory
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
+import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -70,8 +70,8 @@ class LoginPanel {
             val result = response.body?.string().toString()
             thisLogger().info("Login Successful. Response: $result")
             //  resolve token from response
-            val tokenResponse = Klaxon().parse<TokenResponse>(result)
-            val token = tokenResponse?.token
+            val tokenResponse = Json.decodeFromString<TokenResponse>(result)
+            val token = tokenResponse.token
             thisLogger().info("Login Successful. Token: $token")
             PropertiesComponent.getInstance().setValue(Constant.TOKEN_KEY.value, token)
             return true

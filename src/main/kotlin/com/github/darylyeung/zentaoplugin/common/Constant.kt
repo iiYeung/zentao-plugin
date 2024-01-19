@@ -6,7 +6,7 @@ package com.github.darylyeung.zentaoplugin.common
  * @date 2024-01-06 10:39:18
  */
 enum class Constant(val value: String) {
-    TOKEN_KEY("token"),
+    TOKEN_KEY("Token"),
     SERVER_URL_KEY("serverUrl"),
     USER_ACCOUNT("userAccount"),
 }
