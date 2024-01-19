@@ -2,21 +2,24 @@ package com.github.darylyeung.zentaoplugin.extension.zentao
 
 import com.github.darylyeung.zentaoplugin.common.Constant
 import com.github.darylyeung.zentaoplugin.extension.zentao.model.*
+import com.google.gson.Gson
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.tasks.Task
 import com.intellij.tasks.impl.BaseRepository
 import com.intellij.tasks.impl.httpclient.NewBaseRepositoryImpl
+import com.intellij.tasks.impl.httpclient.TaskResponseUtil
 import com.intellij.util.containers.ContainerUtil
 import com.intellij.util.xmlb.annotations.Tag
 import io.ktor.client.plugins.observer.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import kotlinx.serialization.json.Json
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.apache.http.HttpRequestInterceptor
+import org.apache.http.client.methods.HttpGet
+import org.apache.http.client.methods.HttpPost
+import org.apache.http.client.utils.URIBuilder
+import org.apache.http.entity.ContentType
+import org.apache.http.entity.StringEntity
 import org.jetbrains.annotations.NotNull
 import org.jetbrains.annotations.Nullable
 
@@ -60,31 +63,25 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     @Throws(Exception::class)
     private fun fetchBugs(pageNumber: Int, pageSize: Int, openedOnly: Boolean): List<ZentaoBug> {
+        val bugs = mutableListOf<ZentaoBug>()
         ensureProjectsDiscovered()
         if (myCurrentProduct != null) {
-            return getBugs(getRestApiUrl("products", myCurrentProduct?.id, "bugs"))
+            bugs.addAll(getBugs(getRestApiUrl("products", myCurrentProduct?.id, "bugs")))
         } else {
-            val bugs = mutableListOf<ZentaoBug>()
             myProducts?.forEach { product ->
-                bugs.plus(getBugs(getRestApiUrl("products", product.id, "bugs")))
+                bugs.addAll(getBugs(getRestApiUrl("products", product.id, "bugs")))
             }
-            return bugs
         }
+        return bugs
     }
 
 
     private fun getBugs(url: String): List<ZentaoBug> {
-        val response = OkHttpClient().newCall(
-            Request.Builder().url(url)
-                .header(Constant.TOKEN_KEY.value, token.toString()).build()
-        ).execute()
-        if (!response.isSuccessful) {
-            return emptyList()
-        }
-        val result = response.body?.string().toString()
-        thisLogger().info("fetch bug Successful. Response: $result")
-        val page = json.decodeFromString<ZentaoBugPage>(result)
-        return if (page.bugs.isEmpty()) {
+        val urlBuild = URIBuilder(url).addParameter("limit", "1000").build()
+        val handler =
+            TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoBugPage::class.java)
+        val page = httpClient.execute(HttpGet(urlBuild), handler)
+        return if (page == null || page.bugs.isEmpty()) {
             emptyList()
         } else {
             page.bugs.filter { i -> i.assignedTo.account == myUsername }.toList()
@@ -124,18 +121,12 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     fun fetchProducts(): List<ZentaoProduct> {
         generateToken()
 
-        val response = OkHttpClient().newCall(
-            Request.Builder()
-                .url(getRestApiUrl("products"))
-                .header(Constant.TOKEN_KEY.value, token.toString()).build()
-        ).execute()
-        if (!response.isSuccessful) {
-            return emptyList()
-        }
-        val result = response.body?.string().toString()
-        thisLogger().info("fetch product Successful. Response: $result")
-        val page = json.decodeFromString<ZentaoProductPage>(result)
-        return if (page.products.isEmpty()) {
+        val urlBuild = URIBuilder(getRestApiUrl("products")).addParameter("limit", "1000").build()
+        val handler =
+            TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoProductPage::class.java)
+        val page = httpClient.execute(HttpGet(urlBuild), handler)
+        thisLogger().info("fetch product Successful. Response: $page")
+        return if (page == null || page.products.isEmpty()) {
             emptyList()
         } else {
             page.products
@@ -144,22 +135,15 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     @Throws(Exception::class)
     fun generateToken() {
-        val paramJson = "{\"account\":\"$myUsername\",\"password\":\"$myPassword\"}"
-        val body = paramJson.toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
-        val request = Request.Builder().url(getRestApiUrl("tokens"))
-            .header("Content-Type", "application/json; charset=utf-8")
-            .post(body).build()
-        val response = OkHttpClient().newCall(request).execute()
-        if (!response.isSuccessful) {
-            return
-        }
-        val result = response.body?.string().toString()
+        val handler =
+            TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoToken::class.java)
+        val httpPost = HttpPost(URIBuilder(getRestApiUrl("tokens")).build())
+        httpPost.addHeader("Content-Type", "application/json; charset=utf-8")
+        httpPost.entity =
+            StringEntity(Gson().toJson(ZentaoLogin(myUsername, myPassword)), ContentType.APPLICATION_JSON)
+        val result = httpClient.execute(httpPost, handler)
         thisLogger().info("fetch token Successful. Response: $result")
-        if (result.isEmpty()) {
-            return
-        }
-        val token = json.decodeFromString<ZentaoToken>(result)
-        setToken(token.token)
+        setToken(result.token)
     }
 
     fun getCurrentProduct(): ZentaoProduct? {

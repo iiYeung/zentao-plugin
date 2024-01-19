@@ -39,7 +39,7 @@ class ZentaoTask() : Task() {
     }
 
     override fun getSummary(): String {
-       return myZentaoBug.title
+        return myZentaoBug.title
     }
 
     override fun getDescription(): String {
@@ -59,15 +59,15 @@ class ZentaoTask() : Task() {
     }
 
     override fun getUpdated(): Date? {
-        TODO("Not yet implemented")
+        return null
     }
 
     override fun getCreated(): Date? {
-        TODO("Not yet implemented")
+        return null
     }
 
     override fun isClosed(): Boolean {
-        TODO("Not yet implemented")
+        return false
     }
 
     override fun isIssue(): Boolean {
@@ -75,7 +75,7 @@ class ZentaoTask() : Task() {
     }
 
     override fun getIssueUrl(): String? {
-        TODO("Not yet implemented")
+        return null
     }
 
     override fun getProject(): String {
@@ -83,6 +83,6 @@ class ZentaoTask() : Task() {
     }
 
     override fun getRepository(): TaskRepository {
-       return myZentaoRepository
+        return myZentaoRepository
     }
 }
