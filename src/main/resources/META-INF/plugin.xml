@@ -1,8 +1,8 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <id>com.github.darylyeung.zentaoplugin</id>
+    <id>com.iiyeung.plugin.zentao</id>
     <name>Zentaoplugin</name>
-    <vendor>darylyeung</vendor>
+    <vendor email="i.yeung@foxmail.com" url="https://github.com/iiYeung">ii.Yeung</vendor>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.tasks</depends>
@@ -14,10 +14,10 @@
 <!--    </extensions>-->
 
     <extensions defaultExtensionNs="com.intellij.tasks">
-        <repositoryType implementation="com.github.darylyeung.zentaoplugin.extension.zentao.ZentaoRepositoryType"/>
+        <repositoryType implementation="com.iiyeung.plugin.zentao.extension.zentao.ZentaoRepositoryType"/>
     </extensions>
 
     <applicationListeners>
-        <listener class="com.github.darylyeung.zentaoplugin.listeners.MyApplicationActivationListener" topic="com.intellij.openapi.application.ApplicationActivationListener"/>
+        <listener class="com.iiyeung.plugin.zentao.listeners.MyApplicationActivationListener" topic="com.intellij.openapi.application.ApplicationActivationListener"/>
     </applicationListeners>
 </idea-plugin>
