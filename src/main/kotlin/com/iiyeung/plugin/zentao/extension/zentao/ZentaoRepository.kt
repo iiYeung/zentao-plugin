@@ -135,6 +135,9 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     @Throws(Exception::class)
     fun generateToken() {
+        if(token != null) {
+            return
+        }
         val handler =
             TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoToken::class.java)
         val httpPost = HttpPost(URIBuilder(getRestApiUrl("tokens")).build())
