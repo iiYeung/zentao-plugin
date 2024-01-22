@@ -44,7 +44,7 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: jetbrains
+          distribution: oracle
           java-version: 17
 
       # Setup Gradle
