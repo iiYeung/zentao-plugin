@@ -2,6 +2,11 @@
 
 # zentao-plugin Changelog
 
+## [1.0.1]
+### Features
+- Support for IntelliJ 2024.1
+
+
 ## [1.0.0]
 ### Features
 - Add zentao support to IntelliJ Task Management 
