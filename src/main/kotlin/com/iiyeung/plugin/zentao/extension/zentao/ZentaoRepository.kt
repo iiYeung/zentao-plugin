@@ -124,7 +124,14 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         val urlBuild = URIBuilder(getRestApiUrl("products")).addParameter("limit", "1000").build()
         val handler =
             TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoProductPage::class.java)
-        val page = httpClient.execute(HttpGet(urlBuild), handler)
+        var page: ZentaoProductPage?
+        try {
+            page = httpClient.execute(HttpGet(urlBuild), handler)
+        } catch (e: Exception) {
+            thisLogger().info("fetch product error. Response: $e")
+            fetchToken()
+            page = httpClient.execute(HttpGet(urlBuild), handler)
+        }
         thisLogger().info("fetch product Successful. Response: $page")
         return if (page == null || page.products.isEmpty()) {
             emptyList()
@@ -135,18 +142,29 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     @Throws(Exception::class)
     fun generateToken() {
-        if(token != null) {
+        if (token != null) {
             return
         }
+
+        fetchToken()
+    }
+
+    @Throws(Exception::class)
+    private fun fetchToken() {
         val handler =
             TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoToken::class.java)
         val httpPost = HttpPost(URIBuilder(getRestApiUrl("tokens")).build())
         httpPost.addHeader("Content-Type", "application/json; charset=utf-8")
         httpPost.entity =
             StringEntity(Gson().toJson(ZentaoLogin(myUsername, myPassword)), ContentType.APPLICATION_JSON)
-        val result = httpClient.execute(httpPost, handler)
+        var result: ZentaoToken? = null
+        try {
+            result = httpClient.execute(httpPost, handler)
+        } catch (e: Exception) {
+            thisLogger().info("fetch token error. Response: $e")
+        }
         thisLogger().info("fetch token Successful. Response: $result")
-        setToken(result.token)
+        setToken(result?.token)
     }
 
     fun getCurrentProduct(): ZentaoProduct? {

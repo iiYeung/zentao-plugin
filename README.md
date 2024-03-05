@@ -22,7 +22,7 @@
 
 - Using the IDE built-in plugin system:
 
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "zentao-plugin"</kbd> ><kbd>Install</kbd>
+  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "Zentao Integration"</kbd> ><kbd>Install</kbd>
 
 - Manually:
 
