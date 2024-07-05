@@ -80,7 +80,14 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         val urlBuild = URIBuilder(url).addParameter("limit", "1000").build()
         val handler =
             TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoBugPage::class.java)
-        val page = httpClient.execute(HttpGet(urlBuild), handler)
+        var page: ZentaoBugPage?
+        try {
+            page = httpClient.execute(HttpGet(urlBuild), handler)
+        } catch (e: Exception) {
+            thisLogger().info("fetch product error. Response: $e")
+            fetchToken()
+            page = httpClient.execute(HttpGet(urlBuild), handler)
+        }
         return if (page == null || page.bugs.isEmpty()) {
             emptyList()
         } else {

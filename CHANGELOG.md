@@ -1,6 +1,10 @@
 <!-- Keep a Changelog guide -> https://keepachangelog.com -->
 
 # zentao-plugin Changelog
+## [1.0.2]
+### Features
+- Support for IntelliJ 2024.2
+
 
 ## [1.0.1]
 ### Features
