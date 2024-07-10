@@ -33,11 +33,13 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     private var token: String? = null
     private var myCurrentProduct: ZentaoProduct? = null
     private var myProducts: List<ZentaoProduct>? = null
+    private var myUseBearerTokenAuthentication: Boolean = true
 
     constructor() : super()
 
     constructor(other: ZentaoRepository) : super(other) {
         myCurrentProduct = other.myCurrentProduct
+        myUseBearerTokenAuthentication = other.myUseBearerTokenAuthentication
     }
 
     constructor(type: ZentaoRepositoryType) : super(type)
@@ -184,5 +186,15 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     fun setToken(token: String?) {
         this.token = token
+    }
+
+    fun setUseBearerTokenAuthentication(useBearerTokenAuthentication: Boolean) {
+        if (useBearerTokenAuthentication != isUseBearerTokenAuthentication()) {
+            myUseBearerTokenAuthentication = useBearerTokenAuthentication
+        }
+    }
+
+    fun isUseBearerTokenAuthentication(): Boolean {
+        return myUseBearerTokenAuthentication
     }
 }
