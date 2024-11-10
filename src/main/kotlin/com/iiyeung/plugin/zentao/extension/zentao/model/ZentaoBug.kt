@@ -3,7 +3,7 @@ package com.iiyeung.plugin.zentao.extension.zentao.model
 import kotlinx.serialization.Serializable
 
 /**
- * @author Yeung
+ * @author iiYeung
  * @version v1.0
  * @date 2024-01-18 22:25:59
  */

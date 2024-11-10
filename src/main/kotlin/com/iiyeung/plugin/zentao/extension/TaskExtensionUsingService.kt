@@ -4,7 +4,7 @@ import com.iiyeung.plugin.zentao.extension.zentao.ZentaoRepositoryType
 import com.intellij.openapi.extensions.ExtensionPointName
 
 /**
- * @author Yeung
+ * @author iiYeung
  * @version v1.0
  * @date 2024-01-19 14:40:06
  */

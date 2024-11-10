@@ -3,16 +3,13 @@ package com.iiyeung.plugin.zentao.extension.zentao
 import com.google.gson.Gson
 import com.iiyeung.plugin.zentao.common.Constant
 import com.iiyeung.plugin.zentao.extension.zentao.model.*
+import com.iiyeung.plugin.zentao.util.ZentaoResponseUtil
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.tasks.Task
 import com.intellij.tasks.impl.BaseRepository
 import com.intellij.tasks.impl.httpclient.NewBaseRepositoryImpl
-import com.intellij.tasks.impl.httpclient.TaskResponseUtil
 import com.intellij.util.containers.ContainerUtil
 import com.intellij.util.xmlb.annotations.Tag
-import io.ktor.client.plugins.observer.*
-import io.ktor.client.request.*
-import io.ktor.http.*
 import kotlinx.serialization.json.Json
 import org.apache.http.HttpRequestInterceptor
 import org.apache.http.client.methods.HttpGet
@@ -24,7 +21,7 @@ import org.jetbrains.annotations.NotNull
 import org.jetbrains.annotations.Nullable
 
 /**
- * @author Yeung
+ * @author iiYeung
  * @version v1.0
  * @date 2024-01-18 22:32:15
  */
@@ -78,8 +75,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     private fun getBugs(url: String): List<ZentaoBug> {
         val urlBuild = URIBuilder(url).addParameter("limit", "1000").build()
-        val handler =
-            TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoBugPage::class.java)
+        val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoBugPage::class.java)
         var page: ZentaoBugPage?
         try {
             page = httpClient.execute(HttpGet(urlBuild), handler)
@@ -91,7 +87,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         return if (page == null || page.bugs.isEmpty()) {
             emptyList()
         } else {
-            page.bugs.filter { i -> i.assignedTo.account == myUsername }.toList()
+            page.bugs.filter { i -> i.assignedTo?.account == myUsername }.toList()
         }
     }
 
@@ -129,8 +125,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         generateToken()
 
         val urlBuild = URIBuilder(getRestApiUrl("products")).addParameter("limit", "1000").build()
-        val handler =
-            TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoProductPage::class.java)
+        val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(gson = Gson(), ZentaoProductPage::class.java)
         var page: ZentaoProductPage?
         try {
             page = httpClient.execute(HttpGet(urlBuild), handler)
@@ -158,18 +153,13 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     @Throws(Exception::class)
     private fun fetchToken() {
-        val handler =
-            TaskResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoToken::class.java)
+        val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoToken::class.java)
         val httpPost = HttpPost(URIBuilder(getRestApiUrl("tokens")).build())
         httpPost.addHeader("Content-Type", "application/json; charset=utf-8")
         httpPost.entity =
             StringEntity(Gson().toJson(ZentaoLogin(myUsername, myPassword)), ContentType.APPLICATION_JSON)
         var result: ZentaoToken? = null
-        try {
-            result = httpClient.execute(httpPost, handler)
-        } catch (e: Exception) {
-            thisLogger().info("fetch token error. Response: $e")
-        }
+        result = httpClient.execute(httpPost, handler)
         thisLogger().info("fetch token Successful. Response: $result")
         setToken(result?.token)
     }
@@ -184,5 +174,26 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     fun setToken(token: String?) {
         this.token = token
+    }
+
+    override fun createCancellableConnection(): CancellableConnection? {
+        return object : CancellableConnection() {
+            @Throws(Exception::class)
+            override fun doTest() {
+                getUser()
+            }
+
+            override fun cancel() {
+                TODO("Not yet implemented")
+            }
+        }
+    }
+
+    fun getUser() {
+        fetchToken()
+        val urlBuild = URIBuilder(getRestApiUrl("user")).build()
+        val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoUserDetail::class.java)
+        var user = httpClient.execute(HttpGet(urlBuild), handler)
+        thisLogger().info("fetch user Successful. Response: $user")
     }
 }
