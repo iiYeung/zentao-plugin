@@ -9,7 +9,7 @@ import com.intellij.util.Consumer
 import javax.swing.Icon
 
 /**
- * @author Yeung
+ * @author iiYeung
  * @version v1.0
  * @date 2024-01-18 23:53:53
  */
@@ -31,7 +31,7 @@ class ZentaoRepositoryType : BaseRepositoryType<ZentaoRepository>() {
     }
 
     override fun createEditor(
-        repository: ZentaoRepository?,
+        repository: ZentaoRepository,
         project: Project?,
         changeListener: Consumer<in ZentaoRepository>?
     ): TaskRepositoryEditor {

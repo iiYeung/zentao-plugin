@@ -10,27 +10,24 @@ import com.intellij.tasks.config.BaseRepositoryEditor
 import com.intellij.tasks.impl.TaskUiUtil
 import com.intellij.util.Consumer
 import com.intellij.util.ui.FormBuilder
-import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JComponent
-import javax.swing.SwingConstants
 
 
 /**
- * @author Yeung
+ * @author iiYeung
  * @version v1.0
  * @date 2024-01-19 18:28:41
  */
-class ZentaoRepositoryEditor(
-    project: Project?,
-    repository: ZentaoRepository?,
-    changeListener: Consumer<in ZentaoRepository>?
-) : BaseRepositoryEditor<ZentaoRepository>(
-    project,
-    repository,
-    changeListener,
-) {
-    private lateinit var myUseBearerTokenAuthenticationCheckBox: JCheckBox
+class ZentaoRepositoryEditor : BaseRepositoryEditor<ZentaoRepository> {
+
+    constructor(project: Project?, repository: ZentaoRepository, changeListener: Consumer<in ZentaoRepository>?) : super(
+        project,
+        repository,
+        changeListener
+    ) {
+        //  custom
+    }
 
     inner class FetchProjectsTask(
         project: Project?,
@@ -51,39 +48,15 @@ class ZentaoRepositoryEditor(
     }
 
     override fun apply() {
-        myRepository.setUseBearerTokenAuthentication(myUseBearerTokenAuthenticationCheckBox.isSelected)
         super.apply()
-        adjustSettingsForServerProperties()
     }
 
     override fun createCustomPanel(): JComponent? {
-        myUseBearerTokenAuthenticationCheckBox = JCheckBox(ZentaoBundle.message("use.personal.access.token"))
-        myUseBearerTokenAuthenticationCheckBox.isSelected = myRepository.isUseBearerTokenAuthentication()
-        myUseBearerTokenAuthenticationCheckBox.addActionListener { useBearerTokenChanged() }
-        myUseBearerTokenAuthenticationCheckBox.horizontalAlignment = SwingConstants.TRAILING
-        adjustSettingsForServerProperties()
+        myUsernameLabel.isVisible = true
+        myUserNameText.isVisible = true
+        myUsernameLabel.text = TaskBundle.message("label.username")
+        myPasswordLabel.text = TaskBundle.message("label.password")
         return FormBuilder.createFormBuilder()
-            .addComponentToRightColumn(myUseBearerTokenAuthenticationCheckBox)
             .getPanel()
-    }
-
-    private fun adjustSettingsForServerProperties() {
-        if (myUseBearerTokenAuthenticationCheckBox.isSelected()) {
-            myUsernameLabel.isVisible = false
-            myUserNameText.isVisible = false
-            myPasswordLabel.text = TaskBundle.message("label.api.token")
-            myUseBearerTokenAuthenticationCheckBox.isVisible = true
-        } else {
-            myUsernameLabel.isVisible = true
-            myUserNameText.isVisible = true
-            myUsernameLabel.text = TaskBundle.message("label.username")
-            myPasswordLabel.text = TaskBundle.message("label.password")
-            myUseBearerTokenAuthenticationCheckBox.isVisible = true
-        }
-    }
-
-    private fun useBearerTokenChanged() {
-        myRepository.setUseBearerTokenAuthentication(myUseBearerTokenAuthenticationCheckBox.isSelected)
-        adjustSettingsForServerProperties()
     }
 }
