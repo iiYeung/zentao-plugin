@@ -40,10 +40,6 @@ jobs:
       - name: Fetch Sources
         uses: actions/checkout@v4
 
-      # Validate wrapper
-      - name: Gradle Wrapper Validation
-        uses: gradle/actions/wrapper-validation@v3
-
       # Set up Java environment for the next steps
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -62,7 +58,7 @@ jobs:
         run: |
           PROPERTIES="$(./gradlew properties --console=plain -q)"
           VERSION="$(echo "$PROPERTIES" | grep "^version:" | cut -f2- -d ' ')"
-          CHANGELOG="$(./gradlew getChangelog --no-header --console=plain -q)"
+          CHANGELOG="$(./gradlew getChangelog --unreleased --no-header --console=plain -q)"
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "pluginVerifierHomeDir=~/.pluginVerifier" >> $GITHUB_OUTPUT
@@ -129,7 +125,7 @@ jobs:
 
       # Upload the Kover report to CodeCov
       - name: Upload Code Coverage Report
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: ${{ github.workspace }}/build/reports/kover/report.xml
 
@@ -250,7 +246,7 @@ jobs:
         run: |
           gh release create "v${{ needs.build.outputs.version }}" \
             --draft \
-            --title "${{ needs.build.outputs.version }}-RELEASE" \
+            --title "v${{ needs.build.outputs.version }}" \
             --notes "$(cat << 'EOM'
           ${{ needs.build.outputs.changelog }}
           EOM
