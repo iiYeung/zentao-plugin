@@ -47,10 +47,6 @@ class ZentaoRepositoryEditor : BaseRepositoryEditor<ZentaoRepository> {
         }
     }
 
-    override fun apply() {
-        super.apply()
-    }
-
     override fun createCustomPanel(): JComponent? {
         myUsernameLabel.isVisible = true
         myUserNameText.isVisible = true

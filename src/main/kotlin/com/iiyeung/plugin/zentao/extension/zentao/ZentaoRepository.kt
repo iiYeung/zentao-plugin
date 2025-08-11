@@ -4,13 +4,18 @@ import com.google.gson.Gson
 import com.iiyeung.plugin.zentao.common.Constant
 import com.iiyeung.plugin.zentao.extension.zentao.model.*
 import com.iiyeung.plugin.zentao.util.ZentaoResponseUtil
+import com.intellij.credentialStore.CredentialAttributes
+import com.intellij.credentialStore.Credentials
+import com.intellij.ide.passwordSafe.PasswordSafe
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.tasks.Task
 import com.intellij.tasks.impl.BaseRepository
 import com.intellij.tasks.impl.httpclient.NewBaseRepositoryImpl
 import com.intellij.util.containers.ContainerUtil
 import com.intellij.util.xmlb.annotations.Tag
-import kotlinx.serialization.json.Json
 import org.apache.http.HttpRequestInterceptor
 import org.apache.http.client.methods.HttpGet
 import org.apache.http.client.methods.HttpPost
@@ -19,6 +24,7 @@ import org.apache.http.entity.ContentType
 import org.apache.http.entity.StringEntity
 import org.jetbrains.annotations.NotNull
 import org.jetbrains.annotations.Nullable
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * @author iiYeung
@@ -27,9 +33,12 @@ import org.jetbrains.annotations.Nullable
  */
 @Tag("Zentao")
 class ZentaoRepository : NewBaseRepositoryImpl {
-    private var token: String? = null
     private var myCurrentProduct: ZentaoProduct? = null
     private var myProducts: List<ZentaoProduct>? = null
+
+    // 用于防止token生成时的无限递归
+    @Volatile
+    private var isGeneratingToken = false
 
     constructor() : super()
 
@@ -39,6 +48,174 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     constructor(type: ZentaoRepositoryType) : super(type)
 
+    // ========== Token管理相关方法 ==========
+
+    /**
+     * 获取Token的凭据属性
+     */
+    private fun getTokenCredentialAttributes(): CredentialAttributes {
+        return CredentialAttributes(
+            "ZentaoToken_${url}_${myUsername}",
+            myUsername ?: "unknown"
+        )
+    }
+
+    /**
+     * 从安全存储中获取Token
+     */
+    private fun getStoredToken(): String? {
+        val tokenRef = AtomicReference<String?>()
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val credentials = PasswordSafe.instance.get(getTokenCredentialAttributes())
+            tokenRef.set(credentials?.getPasswordAsString())
+        }.get()
+        return tokenRef.get()
+    }
+
+    /**
+     * 将Token存储到安全存储中
+     */
+    private fun storeToken(token: String) {
+        ApplicationManager.getApplication().invokeLater({
+            ApplicationManager.getApplication().executeOnPooledThread {
+                val credentials = Credentials(myUsername, token)
+                PasswordSafe.instance.set(getTokenCredentialAttributes(), credentials)
+            }
+        }, ModalityState.any())
+    }
+
+    /**
+     * 清除存储的Token
+     */
+    private fun clearStoredToken() {
+        ApplicationManager.getApplication().invokeLater({
+            ApplicationManager.getApplication().executeOnPooledThread {
+                PasswordSafe.instance.set(getTokenCredentialAttributes(), null)
+            }
+        }, ModalityState.any())
+    }
+
+    /**
+     * 获取当前有效的Token
+     */
+    fun getCurrentToken(): String? {
+        return getStoredToken()
+    }
+
+    /**
+     * 生成并存储新Token
+     */
+    fun generateAndStoreToken(): String? {
+        // 防止递归调用
+        if (isGeneratingToken) {
+            thisLogger().warn("Token generation already in progress, skipping recursive call")
+            return null
+        }
+
+        return try {
+            isGeneratingToken = true
+            val token = ProgressManager.getInstance().runProcessWithProgressSynchronously<String?, Exception>(
+                {
+                    fetchTokenFromServer()
+                },
+                "正在生成 Token",
+                false,
+                null
+            )
+
+            if (token != null) {
+                storeToken(token)
+            }
+            token
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to generate token", e)
+            null
+        } finally {
+            isGeneratingToken = false
+        }
+    }
+
+    /**
+     * 从服务器获取Token
+     */
+    @Throws(Exception::class)
+    private fun fetchTokenFromServer(): String? {
+        val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoToken::class.java)
+        val httpPost = HttpPost(URIBuilder(getRestApiUrl("tokens")).build())
+        httpPost.addHeader("Content-Type", "application/json; charset=utf-8")
+        httpPost.entity = StringEntity(
+            Gson().toJson(ZentaoLogin(myUsername, myPassword)),
+            ContentType.APPLICATION_JSON
+        )
+
+        val result: ZentaoToken? = httpClient.execute(httpPost, handler)
+        thisLogger().info("Fetch token successful. Response: $result")
+        return result?.token
+    }
+
+    /**
+     * 刷新Token
+     */
+    private fun refreshTokenIfNeeded(): Boolean {
+        return try {
+            clearStoredToken()
+            val newToken = generateAndStoreToken()
+            newToken != null
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to refresh token", e)
+            false
+        }
+    }
+
+    // ========== HTTP请求拦截器 ==========
+
+    @Nullable
+    override fun createRequestInterceptor(): HttpRequestInterceptor {
+        return HttpRequestInterceptor { request, _ ->
+            // 如果正在生成token，跳过添加token header以避免递归
+            if (isGeneratingToken) {
+                return@HttpRequestInterceptor
+            }
+
+            val token = getCurrentToken()
+            if (token != null) {
+                request.addHeader(Constant.TOKEN_KEY.value, token)
+            } else {
+                // 只有在不是token生成过程中才尝试生成新token
+                val newToken = generateAndStoreToken()
+                if (newToken != null) {
+                    request.addHeader(Constant.TOKEN_KEY.value, newToken)
+                }
+            }
+        }
+    }
+
+    // ========== 连接测试 ==========
+
+    override fun createCancellableConnection(): CancellableConnection {
+        return object : CancellableConnection() {
+            @Throws(Exception::class)
+            override fun doTest() {
+                try {
+                    getUser()
+                } catch (e: Exception) {
+                    // Token可能已过期，尝试刷新
+                    if (refreshTokenIfNeeded()) {
+                        getUser()
+                    } else {
+                        throw e
+                    }
+                }
+            }
+
+            override fun cancel() {
+                // 实现取消逻辑
+            }
+        }
+    }
+
+    // ========== API调用方法（带重试机制） ==========
+
     override fun findTask(s: String): Task? {
         return null
     }
@@ -47,47 +224,49 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         return ZentaoRepository(this)
     }
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        coerceInputValues = true
-    }
-
     @Throws(Exception::class)
     override fun getIssues(query: String?, offset: Int, limit: Int, withClosed: Boolean): Array<out ZentaoTask> {
-        val bugs = fetchBugs((offset / limit) + 1, limit, !withClosed)
+        val bugs = fetchBugs()
         return ContainerUtil.map2Array(bugs, ZentaoTask::class.java) { issue -> ZentaoTask(this, issue) }
     }
 
     @Throws(Exception::class)
-    private fun fetchBugs(pageNumber: Int, pageSize: Int, openedOnly: Boolean): List<ZentaoBug> {
+    private fun fetchBugs(): List<ZentaoBug> {
         val bugs = mutableListOf<ZentaoBug>()
         ensureProjectsDiscovered()
         if (myCurrentProduct != null) {
-            bugs.addAll(getBugs(getRestApiUrl("products", myCurrentProduct?.id, "bugs")))
+            bugs.addAll(getBugsWithRetry(getRestApiUrl("products", myCurrentProduct?.id, "bugs")))
         } else {
             myProducts?.forEach { product ->
-                bugs.addAll(getBugs(getRestApiUrl("products", product.id, "bugs")))
+                bugs.addAll(getBugsWithRetry(getRestApiUrl("products", product.id, "bugs")))
             }
         }
         return bugs
     }
 
-
-    private fun getBugs(url: String): List<ZentaoBug> {
+    private fun getBugsWithRetry(url: String): List<ZentaoBug> {
         val urlBuild = URIBuilder(url).addParameter("limit", "1000").build()
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoBugPage::class.java)
-        var page: ZentaoBugPage?
-        try {
-            page = httpClient.execute(HttpGet(urlBuild), handler)
+
+        return try {
+            val page: ZentaoBugPage? = httpClient.execute(HttpGet(urlBuild), handler)
+            extractBugsFromPage(page)
         } catch (e: Exception) {
-            thisLogger().info("fetch product error. Response: $e")
-            fetchToken()
-            page = httpClient.execute(HttpGet(urlBuild), handler)
+            thisLogger().info("Fetch bugs failed, attempting token refresh. Error: $e")
+            if (refreshTokenIfNeeded()) {
+                val page: ZentaoBugPage? = httpClient.execute(HttpGet(urlBuild), handler)
+                extractBugsFromPage(page)
+            } else {
+                emptyList()
+            }
         }
+    }
+
+    private fun extractBugsFromPage(page: ZentaoBugPage?): List<ZentaoBug> {
         return if (page == null || page.bugs.isEmpty()) {
             emptyList()
         } else {
-            page.bugs.filter { i -> i.assignedTo?.account == myUsername }.toList()
+            page.bugs.filter { i -> i.assignedTo.account == myUsername }.toList()
         }
     }
 
@@ -96,7 +275,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         return try {
             ensureProjectsDiscovered()
             myProducts.orEmpty()
-        } catch (ignored: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }
@@ -112,29 +291,28 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         return "/api.php/v1"
     }
 
-    @Nullable
-    override fun createRequestInterceptor(): HttpRequestInterceptor? {
-        return if (token == null) {
-            null
-        } else HttpRequestInterceptor { request, _ -> request.addHeader(Constant.TOKEN_KEY.value, token) }
-    }
-
     @NotNull
     @Throws(Exception::class)
     fun fetchProducts(): List<ZentaoProduct> {
-        generateToken()
-
         val urlBuild = URIBuilder(getRestApiUrl("products")).addParameter("limit", "1000").build()
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(gson = Gson(), ZentaoProductPage::class.java)
-        var page: ZentaoProductPage?
-        try {
-            page = httpClient.execute(HttpGet(urlBuild), handler)
+
+        return try {
+            val page: ZentaoProductPage? = httpClient.execute(HttpGet(urlBuild), handler)
+            extractProductsFromPage(page)
         } catch (e: Exception) {
-            thisLogger().info("fetch product error. Response: $e")
-            fetchToken()
-            page = httpClient.execute(HttpGet(urlBuild), handler)
+            thisLogger().info("Fetch products failed, attempting token refresh. Error: $e")
+            if (refreshTokenIfNeeded()) {
+                val page: ZentaoProductPage? = httpClient.execute(HttpGet(urlBuild), handler)
+                extractProductsFromPage(page)
+            } else {
+                emptyList()
+            }
         }
-        thisLogger().info("fetch product Successful. Response: $page")
+    }
+
+    private fun extractProductsFromPage(page: ZentaoProductPage?): List<ZentaoProduct> {
+        thisLogger().info("Fetch products successful. Response: $page")
         return if (page == null || page.products.isEmpty()) {
             emptyList()
         } else {
@@ -142,58 +320,21 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         }
     }
 
-    @Throws(Exception::class)
-    fun generateToken() {
-        if (token != null) {
-            return
-        }
-
-        fetchToken()
-    }
-
-    @Throws(Exception::class)
-    private fun fetchToken() {
-        val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoToken::class.java)
-        val httpPost = HttpPost(URIBuilder(getRestApiUrl("tokens")).build())
-        httpPost.addHeader("Content-Type", "application/json; charset=utf-8")
-        httpPost.entity =
-            StringEntity(Gson().toJson(ZentaoLogin(myUsername, myPassword)), ContentType.APPLICATION_JSON)
-        var result: ZentaoToken? = null
-        result = httpClient.execute(httpPost, handler)
-        thisLogger().info("fetch token Successful. Response: $result")
-        setToken(result?.token)
-    }
-
     fun getCurrentProduct(): ZentaoProduct? {
         return myCurrentProduct
     }
 
-    fun getToken(): String? {
-        return token
-    }
+    fun getUser() {
+        val urlBuild = URIBuilder(getRestApiUrl("user")).build()
+        val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoUserDetail::class.java)
 
-    fun setToken(token: String?) {
-        this.token = token
-    }
-
-    override fun createCancellableConnection(): CancellableConnection? {
-        return object : CancellableConnection() {
-            @Throws(Exception::class)
-            override fun doTest() {
-                getUser()
-            }
-
-            override fun cancel() {
-                TODO("Not yet implemented")
-            }
+        try {
+            val user = httpClient.execute(HttpGet(urlBuild), handler)
+            thisLogger().info("Fetch user successful. Response: $user")
+        } catch (e: Exception) {
+            thisLogger().warn("Failed to fetch user", e)
+            throw e
         }
     }
 
-    fun getUser() {
-        fetchToken()
-        val urlBuild = URIBuilder(getRestApiUrl("user")).build()
-        val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoUserDetail::class.java)
-        var user = httpClient.execute(HttpGet(urlBuild), handler)
-        thisLogger().info("fetch user Successful. Response: $user")
-    }
 }
