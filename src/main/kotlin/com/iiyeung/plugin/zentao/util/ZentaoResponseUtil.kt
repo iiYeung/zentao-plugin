@@ -7,6 +7,9 @@ import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
 import com.iiyeung.plugin.zentao.ZentaoBundle
 import com.iiyeung.plugin.zentao.common.RequestFailedException
+import com.iiyeung.plugin.zentao.common.UnauthorizedException
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.util.Producer
 import org.apache.commons.httpclient.HttpStatus
@@ -31,6 +34,13 @@ object ZentaoResponseUtil {
     val LOG: Logger = Logger.getInstance(ZentaoResponseUtil::class.java)
 
     val DEFAULT_CHARSET: Charset = StandardCharsets.UTF_8
+
+    private const val ERROR_PREFIX: String = "zentao-plugin: "
+
+    fun withErrorPrefix(message: String?): String {
+        val msg = (message ?: "").trim()
+        return if (msg.startsWith(ERROR_PREFIX)) msg else ERROR_PREFIX + msg
+    }
 
     @Throws(IOException::class)
     fun getResponseContentAsReader(response: HttpResponse): Reader {
@@ -132,6 +142,26 @@ object ZentaoResponseUtil {
         override fun handleResponse(response: HttpResponse): T? {
             val statusCode = response.getStatusLine().getStatusCode()
             if (!myBuilder.mySuccessChecker.test(statusCode)) {
+                // Special handling for 401 Unauthorized: do not notify user, log only and throw
+                if (statusCode == HttpStatus.SC_UNAUTHORIZED) {
+                    val content: String = try {
+                        getResponseContentAsString(response)
+                    } catch (_: Throwable) {
+                        ""
+                    }
+                    var message = messageForStatusCode(statusCode)
+                    try {
+                        val map = Gson().fromJson<MutableMap<*, *>>(content, MutableMap::class.java)
+                        if (map.containsKey("error")) {
+                            message = map["error"].toString()
+                        }
+                    } catch (_: Throwable) {
+                        // ignore JSON parsing issues for unauthorized branch
+                    }
+                    // Only log for 401
+                    LOG.warn(withErrorPrefix(message))
+                    throw UnauthorizedException(message)
+                }
                 if (myBuilder.myIgnoreChecker.test(statusCode)) {
                     return myFallbackValue.produce()
                 }
@@ -144,7 +174,9 @@ object ZentaoResponseUtil {
                 val content: String = getResponseContentAsString(response)
                 val map = Gson().fromJson<MutableMap<*, *>>(content, MutableMap::class.java)
                 if (map.containsKey("error")) {
-                    throw RequestFailedException(map["error"].toString())
+                    val message = map["error"].toString()
+                    notifyError(message)
+                    throw RequestFailedException(message)
                 } else {
                     throw RequestFailedException.forStatusCode(statusCode, messageForStatusCode(statusCode))
                 }
@@ -161,6 +193,18 @@ object ZentaoResponseUtil {
                 LOG.warn("Malformed server response", e)
                 return myFallbackValue.produce()
             }
+        }
+    }
+
+    private fun notifyError(message: String) {
+        try {
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("Zentao Notifications")
+                .createNotification(withErrorPrefix(message), NotificationType.ERROR)
+                .notify(null)
+        } catch (t: Throwable) {
+            // Fallback to log if notifications infra is unavailable
+            LOG.warn("Failed to show notification: ${withErrorPrefix(message)}", t)
         }
     }
 

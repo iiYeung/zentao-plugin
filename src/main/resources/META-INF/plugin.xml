@@ -13,6 +13,10 @@
         <repositoryType implementation="com.iiyeung.plugin.zentao.extension.zentao.ZentaoRepositoryType"/>
     </extensions>
 
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Zentao Notifications" displayType="BALLOON" isLogByDefault="true"/>
+    </extensions>
+
     <applicationListeners>
         <listener class="com.iiyeung.plugin.zentao.listeners.MyApplicationActivationListener" topic="com.intellij.openapi.application.ApplicationActivationListener"/>
     </applicationListeners>

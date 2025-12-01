@@ -1,6 +1,7 @@
 package com.iiyeung.plugin.zentao.common
 
 import com.iiyeung.plugin.zentao.ZentaoBundle
+import com.iiyeung.plugin.zentao.util.ZentaoResponseUtil
 import com.intellij.tasks.TaskRepository
 
 /**
@@ -11,15 +12,21 @@ class RequestFailedException : RuntimeException {
 
     val repository: TaskRepository?
 
-    constructor(repository: TaskRepository, message: String) : super(message) {
+    constructor(repository: TaskRepository, message: String) : super(
+        if (message.isBlank()) message else ZentaoResponseUtil.withErrorPrefix(message)
+    ) {
         this.repository = repository
     }
 
-    constructor(message: String) : super(message) {
+    constructor(message: String) : super(
+        if (message.isBlank()) message else ZentaoResponseUtil.withErrorPrefix(message)
+    ) {
         this.repository = null
     }
 
-    constructor(message: String, cause: Throwable) : super(message, cause) {
+    constructor(message: String, cause: Throwable) : super(
+        if (message.isBlank()) message else ZentaoResponseUtil.withErrorPrefix(message), cause
+    ) {
         this.repository = null
     }
 
@@ -30,12 +37,18 @@ class RequestFailedException : RuntimeException {
     companion object {
         @JvmStatic
         fun forStatusCode(code: Int, message: String): RequestFailedException {
-            return RequestFailedException(ZentaoBundle.message("failure.http.error", code, message))
+            val msg = ZentaoBundle.message("failure.http.error", code, message)
+            return RequestFailedException(
+                if (msg.isBlank()) msg else ZentaoResponseUtil.withErrorPrefix(msg)
+            )
         }
 
         @JvmStatic
         fun forServerMessage(message: String): RequestFailedException {
-            return RequestFailedException(ZentaoBundle.message("failure.server.message", message))
+            val msg = ZentaoBundle.message("failure.server.message", message)
+            return RequestFailedException(
+                if (msg.isBlank()) msg else ZentaoResponseUtil.withErrorPrefix(msg)
+            )
         }
     }
 }

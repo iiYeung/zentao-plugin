@@ -3,11 +3,14 @@ package com.iiyeung.plugin.zentao.extension.zentao
 import com.google.gson.Gson
 import com.iiyeung.plugin.zentao.common.ApiConfig
 import com.iiyeung.plugin.zentao.common.Constants
+import com.iiyeung.plugin.zentao.common.UnauthorizedException
 import com.iiyeung.plugin.zentao.extension.zentao.model.*
 import com.iiyeung.plugin.zentao.util.ZentaoResponseUtil
 import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import com.intellij.ide.passwordSafe.PasswordSafe
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.progress.ProgressManager
@@ -22,6 +25,8 @@ import org.apache.http.client.methods.HttpPost
 import org.apache.http.client.utils.URIBuilder
 import org.apache.http.entity.ContentType
 import org.apache.http.entity.StringEntity
+import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
 
 /**
  * @author iiYeung
@@ -33,9 +38,19 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     private var myCurrentProduct: ZentaoProduct? = null
     private var myProducts: List<ZentaoProduct>? = null
 
-    // 用于防止token生成时的无限递归
+    // Prevent infinite recursion while generating token
     @Volatile
     private var isGeneratingToken = false
+
+    // Backoff control for consecutive bad credentials: avoid repeatedly requesting with the same wrong username/password
+    @Volatile
+    private var lastFailedCredentialSignature: String? = null
+
+    @Volatile
+    private var lastFailedAtMillis: Long = 0L
+
+    // Backoff duration (do not request token again for the same invalid credentials within this period)
+    private val invalidCredentialCooldownMillis: Long = TimeUnit.MINUTES.toMillis(1)
 
     constructor() : super()
 
@@ -45,10 +60,10 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     constructor(type: ZentaoRepositoryType) : super(type)
 
-    // ========== Token管理相关方法 ==========
+    // ========== Token management ==========
 
     /**
-     * 获取Token的凭据属性
+     * Build credential attributes for the Token
      */
     private fun getTokenCredentialAttributes(): CredentialAttributes {
         return CredentialAttributes(
@@ -58,7 +73,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     }
 
     /**
-     * 从安全存储中获取Token
+     * Get token from secure storage
      */
     private fun getStoredToken(): String? {
         // Access PasswordSafe directly; avoid unnecessary thread hop and blocking .get()
@@ -67,7 +82,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     }
 
     /**
-     * 将Token存储到安全存储中
+     * Store token into secure storage
      */
     private fun storeToken(token: String) {
         // Execute in pooled thread; no need to bounce through EDT
@@ -78,7 +93,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     }
 
     /**
-     * 清除存储的Token
+     * Clear stored token
      */
     private fun clearStoredToken() {
         // Execute in pooled thread; avoid scheduling via EDT
@@ -88,20 +103,31 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     }
 
     /**
-     * 获取当前有效的Token
+     * Get the current valid token
      */
     fun getCurrentToken(): String? {
         return getStoredToken()
     }
 
     /**
-     * 生成并存储新Token
+     * Generate and persist a new token
      */
-    fun generateAndStoreToken(): String? {
-        // 防止递归调用
+    fun generateAndStoreToken(force: Boolean = false): String? {
+        // Prevent recursive invocation
         if (isGeneratingToken) {
             thisLogger().warn("Token generation already in progress, skipping recursive call")
             return null
+        }
+
+        val currentSig = credentialSignature()
+        val now = System.currentTimeMillis()
+        if (!force) {
+            if (lastFailedCredentialSignature == currentSig &&
+                now - lastFailedAtMillis < invalidCredentialCooldownMillis
+            ) {
+                thisLogger().warn("Skip token generation due to recent failed credentials; wait for cooldown or change credentials")
+                return null
+            }
         }
 
         return try {
@@ -110,25 +136,39 @@ class ZentaoRepository : NewBaseRepositoryImpl {
                 {
                     fetchTokenFromServer()
                 },
-                "正在生成 Token",
+                "Generating token",
                 false,
                 null
             )
 
             if (token != null) {
                 storeToken(token)
+                // Clear failure markers after success
+                lastFailedCredentialSignature = null
+                lastFailedAtMillis = 0L
             }
             token
         } catch (e: Exception) {
             thisLogger().warn("Failed to generate token", e)
-            null
+            // On error, clear cached token (including persistent storage) to avoid using an invalid/expired token
+            try {
+                clearStoredToken()
+                thisLogger().warn(ZentaoResponseUtil.withErrorPrefix("Token request failed, cleared cached token"))
+            } catch (t: Throwable) {
+                thisLogger().warn("Failed to clear cached token after token request failure", t)
+            }
+            // Record as failed credentials and enter backoff window
+            lastFailedCredentialSignature = currentSig
+            lastFailedAtMillis = System.currentTimeMillis()
+            // Rethrow the original exception so the caller can get the exact API error message
+            throw e
         } finally {
             isGeneratingToken = false
         }
     }
 
     /**
-     * 从服务器获取Token
+     * Fetch token from server
      */
     @Throws(Exception::class)
     private fun fetchTokenFromServer(): String? {
@@ -146,7 +186,24 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     }
 
     /**
-     * 刷新Token
+     * Generate a non-plain signature based on current username/password to detect credential changes
+     */
+    private fun credentialSignature(): String {
+        val user = myUsername ?: ""
+        val pwd = myPassword ?: ""
+        val input = "$user:$pwd"
+        return try {
+            val md = MessageDigest.getInstance("SHA-256")
+            val bytes = md.digest(input.toByteArray(Charsets.UTF_8))
+            bytes.joinToString(separator = "") { b -> "%02x".format(b) }
+        } catch (t: Throwable) {
+            // Fall back to plain concatenation (memory only), do not log
+            input
+        }
+    }
+
+    /**
+     * Refresh token
      */
     private fun refreshTokenIfNeeded(): Boolean {
         return try {
@@ -159,11 +216,11 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         }
     }
 
-    // ========== HTTP请求拦截器 ==========
+    // ========== HTTP request interceptor ==========
 
     override fun createRequestInterceptor(): HttpRequestInterceptor {
         return HttpRequestInterceptor { request, _ ->
-            // 如果正在生成token，跳过添加token header以避免递归
+            // If generating token, skip adding token header to avoid recursion
             if (isGeneratingToken) {
                 return@HttpRequestInterceptor
             }
@@ -172,7 +229,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
             if (token != null) {
                 request.addHeader(Constants.TOKEN_KEY, token)
             } else {
-                // 只有在不是token生成过程中才尝试生成新token
+                // Only try to generate a new token if we are not in the generation process
                 val newToken = generateAndStoreToken()
                 if (newToken != null) {
                     request.addHeader(Constants.TOKEN_KEY, newToken)
@@ -181,31 +238,42 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         }
     }
 
-    // ========== 连接测试 ==========
+    // ========== Connection test ==========
 
     override fun createCancellableConnection(): CancellableConnection {
         return object : CancellableConnection() {
             @Throws(Exception::class)
             override fun doTest() {
                 try {
+                    // During connection test, always generate a fresh token from current username/password
+                    // to avoid using outdated cached token
+                    clearStoredToken()
+                    val newToken = generateAndStoreToken(force = true)
+
+                    // If token cannot be generated from current input, fail immediately (keep server-side error message)
+                    if (newToken.isNullOrBlank()) {
+                        throw IllegalStateException(ZentaoResponseUtil.withErrorPrefix("Failed to generate token with current credentials"))
+                    }
+                    // Use the newly generated token to validate user info, no retries
                     getUser()
                 } catch (e: Exception) {
-                    // Token可能已过期，尝试刷新
-                    if (refreshTokenIfNeeded()) {
-                        getUser()
-                    } else {
-                        throw e
+                    // Connection test: do not show notification; throw a single prefixed IllegalStateException
+                    val message = ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString())
+                    // For 401 still log only (no notification)
+                    if (e is UnauthorizedException) {
+                        thisLogger().warn(message)
                     }
+                    throw IllegalStateException(message)
                 }
             }
 
             override fun cancel() {
-                // 实现取消逻辑
+                // Implement cancel logic
             }
         }
     }
 
-    // ========== API调用方法（带重试机制） ==========
+    // ========== API methods (no retry mechanism) ==========
 
     override fun findTask(s: String): Task? {
         return null
@@ -226,16 +294,16 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         val bugs = mutableListOf<ZentaoBug>()
         ensureProjectsDiscovered()
         if (myCurrentProduct != null) {
-            bugs.addAll(getBugsWithRetry(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS, myCurrentProduct?.id, ApiConfig.Endpoints.BUGS)))
+            bugs.addAll(getBugs(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS, myCurrentProduct?.id, ApiConfig.Endpoints.BUGS)))
         } else {
             myProducts?.forEach { product ->
-                bugs.addAll(getBugsWithRetry(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS, product.id, ApiConfig.Endpoints.BUGS)))
+                bugs.addAll(getBugs(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS, product.id, ApiConfig.Endpoints.BUGS)))
             }
         }
         return bugs
     }
 
-    private fun getBugsWithRetry(url: String): List<ZentaoBug> {
+    private fun getBugs(url: String): List<ZentaoBug> {
         val urlBuild = URIBuilder(url).addParameter("limit", "1000").build()
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoBugPage::class.java)
 
@@ -243,13 +311,16 @@ class ZentaoRepository : NewBaseRepositoryImpl {
             val page: ZentaoBugPage? = httpClient.execute(HttpGet(urlBuild), handler)
             extractBugsFromPage(page)
         } catch (e: Exception) {
-            thisLogger().info("Fetch bugs failed, attempting token refresh. Error: $e")
-            if (refreshTokenIfNeeded()) {
-                val page: ZentaoBugPage? = httpClient.execute(HttpGet(urlBuild), handler)
-                extractBugsFromPage(page)
+            // No retry; do not notify for 401 (log only); notify and rethrow for other errors
+            if (e is UnauthorizedException) {
+                thisLogger().warn(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()))
             } else {
-                emptyList()
+                NotificationGroupManager.getInstance()
+                    .getNotificationGroup("Zentao Notifications")
+                    .createNotification(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()), NotificationType.ERROR)
+                    .notify(null)
             }
+            throw e
         }
     }
 
@@ -262,12 +333,9 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     }
 
     fun getProducts(): List<ZentaoProduct> {
-        return try {
-            ensureProjectsDiscovered()
-            myProducts.orEmpty()
-        } catch (_: Exception) {
-            emptyList()
-        }
+        // Do not swallow exceptions: ensure callers receive failures
+        ensureProjectsDiscovered()
+        return myProducts.orEmpty()
     }
 
     @Throws(Exception::class)
@@ -290,13 +358,16 @@ class ZentaoRepository : NewBaseRepositoryImpl {
             val page: ZentaoProductPage? = httpClient.execute(HttpGet(urlBuild), handler)
             extractProductsFromPage(page)
         } catch (e: Exception) {
-            thisLogger().info("Fetch products failed, attempting token refresh. Error: $e")
-            if (refreshTokenIfNeeded()) {
-                val page: ZentaoProductPage? = httpClient.execute(HttpGet(urlBuild), handler)
-                extractProductsFromPage(page)
+            // No retry; do not notify for 401 (log only); notify and rethrow for other errors
+            if (e is UnauthorizedException) {
+                thisLogger().warn(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()))
             } else {
-                emptyList()
+                NotificationGroupManager.getInstance()
+                    .getNotificationGroup("Zentao Notifications")
+                    .createNotification(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()), NotificationType.ERROR)
+                    .notify(null)
             }
+            throw e
         }
     }
 
