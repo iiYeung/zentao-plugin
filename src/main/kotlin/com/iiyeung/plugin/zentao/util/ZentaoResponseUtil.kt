@@ -1,12 +1,13 @@
 package com.iiyeung.plugin.zentao.util
 
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonElement
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
+import com.iiyeung.plugin.zentao.ZentaoBundle
+import com.iiyeung.plugin.zentao.common.RequestFailedException
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.tasks.TaskBundle
-import com.intellij.tasks.impl.RequestFailedException
-import com.intellij.tasks.impl.TaskUtil
 import com.intellij.util.Producer
 import org.apache.commons.httpclient.HttpStatus
 import org.apache.http.HttpResponse
@@ -45,11 +46,11 @@ object ZentaoResponseUtil {
 
     fun messageForStatusCode(statusCode: Int): String {
         if (statusCode == HttpStatus.SC_UNAUTHORIZED) {
-            return TaskBundle.message("failure.login")
+            return ZentaoBundle.message("failure.login")
         } else if (statusCode == HttpStatus.SC_FORBIDDEN) {
-            return TaskBundle.message("failure.permissions")
+            return ZentaoBundle.message("failure.permissions")
         }
-        return TaskBundle.message("failure.http.error", statusCode, HttpStatus.getStatusText(statusCode))
+        return ZentaoBundle.message("failure.http.error", statusCode, HttpStatus.getStatusText(statusCode))
     }
 
     @ApiStatus.Internal
@@ -79,21 +80,24 @@ object ZentaoResponseUtil {
         }
 
         fun <T> toSingleObject(cls: Class<T?>): ResponseHandler<T?> {
-            return GsonResponseHandler<T?>(this,
+            return GsonResponseHandler<T?>(
+                this,
                 Function { s: String? -> myGson.fromJson<T?>(s, cls) },
                 Function { r: Reader? -> myGson.fromJson<T?>(r, cls) },
                 Producer { null })
         }
 
         fun <T> toMultipleObjects(typeToken: TypeToken<MutableList<T?>?>): ResponseHandler<MutableList<T?>?> {
-            return GsonResponseHandler<MutableList<T?>?>(this,
+            return GsonResponseHandler<MutableList<T?>?>(
+                this,
                 Function { s: String? -> myGson.fromJson<MutableList<T?>?>(s, typeToken.getType()) },
                 Function { r: Reader? -> myGson.fromJson<MutableList<T?>?>(r, typeToken.getType()) },
                 Producer { mutableListOf() })
         }
 
         fun toNothing(): ResponseHandler<Void?> {
-            return GsonResponseHandler<Void?>(this,
+            return GsonResponseHandler<Void?>(
+                this,
                 Function { s: String? -> null },
                 Function { r: Reader? -> null },
                 Producer { null })
@@ -148,7 +152,7 @@ object ZentaoResponseUtil {
             try {
                 if (LOG.isDebugEnabled()) {
                     val content: String = getResponseContentAsString(response)
-                    TaskUtil.prettyFormatJsonToLog(LOG, content)
+                    prettyFormatJsonToLog(LOG, content)
                     return myFromString.apply(content)
                 } else {
                     return myFromReader.apply(getResponseContentAsReader(response))
@@ -161,14 +165,22 @@ object ZentaoResponseUtil {
     }
 
     class GsonSingleObjectDeserializer<T>(
-        gson: Gson,
-        cls: Class<T>,
-        ignoreNotFound: Boolean = false
+        gson: Gson, cls: Class<T>, ignoreNotFound: Boolean = false
     ) : GsonResponseHandler<T>(
         JsonResponseHandlerBuilder.fromGson(gson)
-            .ignoredCode { code -> ignoreNotFound && code == HttpStatus.SC_NOT_FOUND },
+        .ignoredCode { code -> ignoreNotFound && code == HttpStatus.SC_NOT_FOUND },
         { gson.fromJson(it, cls) },
         { gson.fromJson(it, cls) },
-        { null }
-    )
+        { null })
+
+    fun prettyFormatJsonToLog(logger: Logger, json: String) {
+        if (logger.isDebugEnabled()) {
+            try {
+                val gson = GsonBuilder().setPrettyPrinting().create()
+                logger.debug("\n" + gson.toJson(gson.fromJson<JsonElement?>(json, JsonElement::class.java)))
+            } catch (e: JsonSyntaxException) {
+                logger.debug("Malformed JSON\n" + json)
+            }
+        }
+    }
 }

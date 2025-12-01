@@ -9,10 +9,6 @@
 
     <resource-bundle>messages.ZentaoBundle</resource-bundle>
 
-<!--    <extensions defaultExtensionNs="com.intellij">-->
-<!--        <toolWindow factoryClass="com.github.darylyeung.zentaoplugin.toolWindow.MyToolWindowFactory" id="zentao"/>-->
-<!--    </extensions>-->
-
     <extensions defaultExtensionNs="com.intellij.tasks">
         <repositoryType implementation="com.iiyeung.plugin.zentao.extension.zentao.ZentaoRepositoryType"/>
     </extensions>

@@ -5,7 +5,6 @@ import com.iiyeung.plugin.zentao.extension.zentao.model.ZentaoProduct
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.NlsContexts
-import com.intellij.tasks.TaskBundle
 import com.intellij.tasks.config.BaseRepositoryEditor
 import com.intellij.tasks.impl.TaskUiUtil
 import com.intellij.util.Consumer
@@ -111,8 +110,8 @@ class ZentaoRepositoryEditor : BaseRepositoryEditor<ZentaoRepository> {
     override fun createCustomPanel(): JComponent? {
         myUsernameLabel.isVisible = true
         myUserNameText.isVisible = true
-        myUsernameLabel.text = TaskBundle.message("label.username")
-        myPasswordLabel.text = TaskBundle.message("label.password")
+        myUsernameLabel.text = "Username"
+        myPasswordLabel.text = "Password"
         val panel = FormBuilder.createFormBuilder().panel
         // Install simple live validation for base URL and required fields
         installValidation()
