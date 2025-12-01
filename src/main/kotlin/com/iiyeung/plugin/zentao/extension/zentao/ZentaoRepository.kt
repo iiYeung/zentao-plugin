@@ -9,7 +9,6 @@ import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.tasks.Task
@@ -23,9 +22,6 @@ import org.apache.http.client.methods.HttpPost
 import org.apache.http.client.utils.URIBuilder
 import org.apache.http.entity.ContentType
 import org.apache.http.entity.StringEntity
-import org.jetbrains.annotations.NotNull
-import org.jetbrains.annotations.Nullable
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * @author iiYeung
@@ -65,35 +61,30 @@ class ZentaoRepository : NewBaseRepositoryImpl {
      * 从安全存储中获取Token
      */
     private fun getStoredToken(): String? {
-        val tokenRef = AtomicReference<String?>()
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val credentials = PasswordSafe.instance.get(getTokenCredentialAttributes())
-            tokenRef.set(credentials?.getPasswordAsString())
-        }.get()
-        return tokenRef.get()
+        // Access PasswordSafe directly; avoid unnecessary thread hop and blocking .get()
+        val credentials = PasswordSafe.instance.get(getTokenCredentialAttributes())
+        return credentials?.getPasswordAsString()
     }
 
     /**
      * 将Token存储到安全存储中
      */
     private fun storeToken(token: String) {
-        ApplicationManager.getApplication().invokeLater({
-            ApplicationManager.getApplication().executeOnPooledThread {
-                val credentials = Credentials(myUsername, token)
-                PasswordSafe.instance.set(getTokenCredentialAttributes(), credentials)
-            }
-        }, ModalityState.any())
+        // Execute in pooled thread; no need to bounce through EDT
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val credentials = Credentials(myUsername, token)
+            PasswordSafe.instance.set(getTokenCredentialAttributes(), credentials)
+        }
     }
 
     /**
      * 清除存储的Token
      */
     private fun clearStoredToken() {
-        ApplicationManager.getApplication().invokeLater({
-            ApplicationManager.getApplication().executeOnPooledThread {
-                PasswordSafe.instance.set(getTokenCredentialAttributes(), null)
-            }
-        }, ModalityState.any())
+        // Execute in pooled thread; avoid scheduling via EDT
+        ApplicationManager.getApplication().executeOnPooledThread {
+            PasswordSafe.instance.set(getTokenCredentialAttributes(), null)
+        }
     }
 
     /**
@@ -170,7 +161,6 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     // ========== HTTP请求拦截器 ==========
 
-    @Nullable
     override fun createRequestInterceptor(): HttpRequestInterceptor {
         return HttpRequestInterceptor { request, _ ->
             // 如果正在生成token，跳过添加token header以避免递归
@@ -271,7 +261,6 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         }
     }
 
-    @NotNull
     fun getProducts(): List<ZentaoProduct> {
         return try {
             ensureProjectsDiscovered()
@@ -292,7 +281,6 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         return ApiConfig.Paths.REST_PREFIX
     }
 
-    @NotNull
     @Throws(Exception::class)
     fun fetchProducts(): List<ZentaoProduct> {
         val urlBuild = URIBuilder(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS)).addParameter("limit", "1000").build()
