@@ -10,8 +10,11 @@ import com.intellij.tasks.config.BaseRepositoryEditor
 import com.intellij.tasks.impl.TaskUiUtil
 import com.intellij.util.Consumer
 import com.intellij.util.ui.FormBuilder
+import java.net.URL
 import javax.swing.JComboBox
 import javax.swing.JComponent
+import javax.swing.event.DocumentEvent
+import javax.swing.event.DocumentListener
 
 
 /**
@@ -47,12 +50,72 @@ class ZentaoRepositoryEditor : BaseRepositoryEditor<ZentaoRepository> {
         }
     }
 
+    private fun setComponentError(component: JComponent, message: String?) {
+        component.putClientProperty("JComponent.outline", if (message.isNullOrBlank()) null else "error")
+        component.toolTipText = message
+    }
+
+    private fun isValidHttpUrl(text: String?): Boolean {
+        if (text.isNullOrBlank()) return false
+        val trimmed = text.trim()
+        if (!(trimmed.startsWith("http://") || trimmed.startsWith("https://"))) return false
+        return try {
+            val url = URL(trimmed)
+            !url.host.isNullOrBlank()
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun installValidation() {
+        // Validate URL format
+        val urlDoc = myURLText.document
+        urlDoc.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) = validateAll()
+            override fun removeUpdate(e: DocumentEvent) = validateAll()
+            override fun changedUpdate(e: DocumentEvent) = validateAll()
+        })
+
+        // Validate required username
+        myUserNameText.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) = validateAll()
+            override fun removeUpdate(e: DocumentEvent) = validateAll()
+            override fun changedUpdate(e: DocumentEvent) = validateAll()
+        })
+
+        // Validate required password
+        myPasswordText.document.addDocumentListener(object : DocumentListener {
+            override fun insertUpdate(e: DocumentEvent) = validateAll()
+            override fun removeUpdate(e: DocumentEvent) = validateAll()
+            override fun changedUpdate(e: DocumentEvent) = validateAll()
+        })
+
+        // Initial validation
+        validateAll()
+    }
+
+    private fun validateAll() {
+        val urlText = myURLText.text
+        val userText = myUserNameText.text
+        val pwdText = String(myPasswordText.password)
+
+        val urlError = if (isValidHttpUrl(urlText)) null else ZentaoBundle.message("editor.validation.invalid.url")
+        val userError = if (userText.isNullOrBlank()) ZentaoBundle.message("editor.validation.username.empty") else null
+        val pwdError = if (pwdText.isBlank()) ZentaoBundle.message("editor.validation.password.empty") else null
+
+        setComponentError(myURLText, urlError)
+        setComponentError(myUserNameText, userError)
+        setComponentError(myPasswordText, pwdError)
+    }
+
     override fun createCustomPanel(): JComponent? {
         myUsernameLabel.isVisible = true
         myUserNameText.isVisible = true
         myUsernameLabel.text = TaskBundle.message("label.username")
         myPasswordLabel.text = TaskBundle.message("label.password")
-        return FormBuilder.createFormBuilder()
-            .getPanel()
+        val panel = FormBuilder.createFormBuilder().panel
+        // Install simple live validation for base URL and required fields
+        installValidation()
+        return panel
     }
 }

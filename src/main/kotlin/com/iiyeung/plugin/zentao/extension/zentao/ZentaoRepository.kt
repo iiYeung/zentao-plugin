@@ -1,7 +1,8 @@
 package com.iiyeung.plugin.zentao.extension.zentao
 
 import com.google.gson.Gson
-import com.iiyeung.plugin.zentao.common.Constant
+import com.iiyeung.plugin.zentao.common.ApiConfig
+import com.iiyeung.plugin.zentao.common.Constants
 import com.iiyeung.plugin.zentao.extension.zentao.model.*
 import com.iiyeung.plugin.zentao.util.ZentaoResponseUtil
 import com.intellij.credentialStore.CredentialAttributes
@@ -141,15 +142,15 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     @Throws(Exception::class)
     private fun fetchTokenFromServer(): String? {
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoToken::class.java)
-        val httpPost = HttpPost(URIBuilder(getRestApiUrl("tokens")).build())
-        httpPost.addHeader("Content-Type", "application/json; charset=utf-8")
+        val httpPost = HttpPost(URIBuilder(getRestApiUrl(ApiConfig.Endpoints.TOKENS)).build())
+        httpPost.addHeader(ApiConfig.Headers.CONTENT_TYPE, ApiConfig.ContentTypes.JSON_UTF8)
         httpPost.entity = StringEntity(
             Gson().toJson(ZentaoLogin(myUsername, myPassword)),
             ContentType.APPLICATION_JSON
         )
 
         val result: ZentaoToken? = httpClient.execute(httpPost, handler)
-        thisLogger().info("Fetch token successful. Response: $result")
+        thisLogger().info("Fetch token successful.")
         return result?.token
     }
 
@@ -179,12 +180,12 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
             val token = getCurrentToken()
             if (token != null) {
-                request.addHeader(Constant.TOKEN_KEY.value, token)
+                request.addHeader(Constants.TOKEN_KEY, token)
             } else {
                 // 只有在不是token生成过程中才尝试生成新token
                 val newToken = generateAndStoreToken()
                 if (newToken != null) {
-                    request.addHeader(Constant.TOKEN_KEY.value, newToken)
+                    request.addHeader(Constants.TOKEN_KEY, newToken)
                 }
             }
         }
@@ -235,10 +236,10 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         val bugs = mutableListOf<ZentaoBug>()
         ensureProjectsDiscovered()
         if (myCurrentProduct != null) {
-            bugs.addAll(getBugsWithRetry(getRestApiUrl("products", myCurrentProduct?.id, "bugs")))
+            bugs.addAll(getBugsWithRetry(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS, myCurrentProduct?.id, ApiConfig.Endpoints.BUGS)))
         } else {
             myProducts?.forEach { product ->
-                bugs.addAll(getBugsWithRetry(getRestApiUrl("products", product.id, "bugs")))
+                bugs.addAll(getBugsWithRetry(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS, product.id, ApiConfig.Endpoints.BUGS)))
             }
         }
         return bugs
@@ -288,13 +289,13 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     }
 
     override fun getRestApiPathPrefix(): String {
-        return "/api.php/v1"
+        return ApiConfig.Paths.REST_PREFIX
     }
 
     @NotNull
     @Throws(Exception::class)
     fun fetchProducts(): List<ZentaoProduct> {
-        val urlBuild = URIBuilder(getRestApiUrl("products")).addParameter("limit", "1000").build()
+        val urlBuild = URIBuilder(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS)).addParameter("limit", "1000").build()
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(gson = Gson(), ZentaoProductPage::class.java)
 
         return try {
@@ -325,7 +326,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     }
 
     fun getUser() {
-        val urlBuild = URIBuilder(getRestApiUrl("user")).build()
+        val urlBuild = URIBuilder(getRestApiUrl(ApiConfig.Endpoints.USER)).build()
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoUserDetail::class.java)
 
         try {

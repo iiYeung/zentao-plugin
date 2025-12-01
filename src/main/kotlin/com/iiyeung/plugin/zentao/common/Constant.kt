@@ -5,6 +5,6 @@ package com.iiyeung.plugin.zentao.common
  * @version v1.0
  * @date 2024-01-06 10:39:18
  */
-enum class Constant(val value: String) {
-    TOKEN_KEY("Token"),
+object Constants {
+    const val TOKEN_KEY: String = "Token"
 }
