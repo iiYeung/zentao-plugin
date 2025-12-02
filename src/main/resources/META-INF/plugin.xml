@@ -3,6 +3,7 @@
     <id>com.iiyeung.plugin.zentao</id>
     <name>Zentao Integration</name>
     <vendor email="ii.yeung@foxmail.com" url="https://github.com/iiYeung">ii.Yeung</vendor>
+    <idea-version since-build="231.0" until-build="253.*"/>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.tasks</depends>
