@@ -15,6 +15,7 @@ import com.intellij.util.Producer
 import org.apache.commons.httpclient.HttpStatus
 import org.apache.http.HttpResponse
 import org.apache.http.client.ResponseHandler
+import org.apache.http.entity.ContentType
 import org.apache.http.util.EntityUtils
 import org.jetbrains.annotations.ApiStatus
 import java.io.IOException
@@ -44,9 +45,11 @@ object ZentaoResponseUtil {
 
     @Throws(IOException::class)
     fun getResponseContentAsReader(response: HttpResponse): Reader {
-        val header = response.getEntity().getContentEncoding()
-        val charset = if (header == null) DEFAULT_CHARSET else Charset.forName(header.getValue())
-        return InputStreamReader(response.getEntity().getContent(), charset)
+        // Respect Content-Type charset; fall back to UTF-8
+        val entity = response.entity
+        val ct = ContentType.getOrDefault(entity)
+        val charset = ct.charset ?: DEFAULT_CHARSET
+        return InputStreamReader(entity.content, charset)
     }
 
     @Throws(IOException::class)
@@ -144,20 +147,8 @@ object ZentaoResponseUtil {
             if (!myBuilder.mySuccessChecker.test(statusCode)) {
                 // Special handling for 401 Unauthorized: do not notify user, log only and throw
                 if (statusCode == HttpStatus.SC_UNAUTHORIZED) {
-                    val content: String = try {
-                        getResponseContentAsString(response)
-                    } catch (_: Throwable) {
-                        ""
-                    }
-                    var message = messageForStatusCode(statusCode)
-                    try {
-                        val map = Gson().fromJson<MutableMap<*, *>>(content, MutableMap::class.java)
-                        if (map.containsKey("error")) {
-                            message = map["error"].toString()
-                        }
-                    } catch (_: Throwable) {
-                        // ignore JSON parsing issues for unauthorized branch
-                    }
+                    val content: String = runCatching { getResponseContentAsString(response) }.getOrDefault("")
+                    val message = extractErrorMessage(content, messageForStatusCode(statusCode))
                     // Only log for 401
                     LOG.warn(withErrorPrefix(message))
                     throw UnauthorizedException(message)
@@ -171,15 +162,10 @@ object ZentaoResponseUtil {
                         throw exception
                     }
                 }
-                val content: String = getResponseContentAsString(response)
-                val map = Gson().fromJson<MutableMap<*, *>>(content, MutableMap::class.java)
-                if (map.containsKey("error")) {
-                    val message = map["error"].toString()
-                    notifyError(message)
-                    throw RequestFailedException(message)
-                } else {
-                    throw RequestFailedException.forStatusCode(statusCode, messageForStatusCode(statusCode))
-                }
+                val content: String = runCatching { getResponseContentAsString(response) }.getOrDefault("")
+                val message = extractErrorMessage(content, messageForStatusCode(statusCode))
+                notifyError(message)
+                throw RequestFailedException(message)
             }
             try {
                 if (LOG.isDebugEnabled()) {
@@ -208,6 +194,51 @@ object ZentaoResponseUtil {
         }
     }
 
+    private fun extractErrorMessage(raw: String, defaultMessage: String?): String {
+        if (raw.isBlank()) return defaultMessage ?: ""
+        // Try to parse JSON and extract common error fields
+        return try {
+            val gson = Gson()
+            val element = gson.fromJson(raw, JsonElement::class.java)
+            when {
+                element.isJsonPrimitive && element.asJsonPrimitive.isString -> element.asString
+                element.isJsonObject -> {
+                    val obj = element.asJsonObject
+                    val keys = listOf("error", "message", "msg", "detail")
+                    for (k in keys) {
+                        if (obj.has(k) && obj.get(k).isJsonPrimitive) {
+                            return obj.get(k).asString
+                        }
+                    }
+                    // Handle { errors: [...] } or { errors: { message: "..." } }
+                    if (obj.has("errors")) {
+                        val errors = obj.get("errors")
+                        if (errors.isJsonArray && errors.asJsonArray.size() > 0) {
+                            val first = errors.asJsonArray[0]
+                            if (first.isJsonPrimitive) return first.asString
+                            if (first.isJsonObject) {
+                                val fObj = first.asJsonObject
+                                if (fObj.has("message") && fObj.get("message").isJsonPrimitive) {
+                                    return fObj.get("message").asString
+                                }
+                            }
+                        } else if (errors.isJsonObject) {
+                            val eObj = errors.asJsonObject
+                            if (eObj.has("message") && eObj.get("message").isJsonPrimitive) {
+                                return eObj.get("message").asString
+                            }
+                        }
+                    }
+                    defaultMessage ?: raw
+                }
+                else -> defaultMessage ?: raw
+            }
+        } catch (_: Throwable) {
+            // Not JSON or parse failed; return raw string if readable
+            if (raw.length <= 1024) raw else (defaultMessage ?: "")
+        }
+    }
+
     class GsonSingleObjectDeserializer<T>(
         gson: Gson, cls: Class<T>, ignoreNotFound: Boolean = false
     ) : GsonResponseHandler<T>(
@@ -222,7 +253,7 @@ object ZentaoResponseUtil {
             try {
                 val gson = GsonBuilder().setPrettyPrinting().create()
                 logger.debug("\n" + gson.toJson(gson.fromJson<JsonElement?>(json, JsonElement::class.java)))
-            } catch (e: JsonSyntaxException) {
+            } catch (_: JsonSyntaxException) {
                 logger.debug("Malformed JSON\n" + json)
             }
         }

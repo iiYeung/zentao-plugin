@@ -1,6 +1,8 @@
 package com.iiyeung.plugin.zentao.extension.zentao
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.thisLogger
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -15,6 +17,11 @@ class ZentaoRepositoryTest {
 
     @Before
     fun setUp() {
+        // Skip tests when running outside IntelliJ Platform (no Application available)
+        assumeTrue(
+            "IntelliJ Platform is not initialized; skipping plugin integration tests in headless environment.",
+            ApplicationManager.getApplication() != null
+        )
         zentaoRepository.generateAndStoreToken()
         thisLogger().info("setUp: ${zentaoRepository.getCurrentToken()}")
     }

@@ -85,21 +85,25 @@ class ZentaoRepository : NewBaseRepositoryImpl {
      * Store token into secure storage
      */
     private fun storeToken(token: String) {
-        // Execute in pooled thread; no need to bounce through EDT
-        ApplicationManager.getApplication().executeOnPooledThread {
+        // Execute in pooled thread when platform available; otherwise do it synchronously for tests
+        val app = ApplicationManager.getApplication()
+        val action = Runnable {
             val credentials = Credentials(myUsername, token)
             PasswordSafe.instance.set(getTokenCredentialAttributes(), credentials)
         }
+        if (app != null) app.executeOnPooledThread(action) else action.run()
     }
 
     /**
      * Clear stored token
      */
     private fun clearStoredToken() {
-        // Execute in pooled thread; avoid scheduling via EDT
-        ApplicationManager.getApplication().executeOnPooledThread {
+        // Execute in pooled thread when platform available; otherwise do it synchronously for tests
+        val app = ApplicationManager.getApplication()
+        val action = Runnable {
             PasswordSafe.instance.set(getTokenCredentialAttributes(), null)
         }
+        if (app != null) app.executeOnPooledThread(action) else action.run()
     }
 
     /**
@@ -112,6 +116,8 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     /**
      * Generate and persist a new token
      */
+    fun generateAndStoreToken(): String? = generateAndStoreToken(force = false)
+
     fun generateAndStoreToken(force: Boolean = false): String? {
         // Prevent recursive invocation
         if (isGeneratingToken) {
@@ -132,14 +138,15 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
         return try {
             isGeneratingToken = true
-            val token = ProgressManager.getInstance().runProcessWithProgressSynchronously<String?, Exception>(
-                {
+            val app = ApplicationManager.getApplication()
+            val token = if (app != null) {
+                ProgressManager.getInstance().runProcessWithProgressSynchronously<String?, Exception>({
                     fetchTokenFromServer()
-                },
-                "Generating token",
-                false,
-                null
-            )
+                }, "Generating token", false, null)
+            } else {
+                // Test environment without IntelliJ application
+                fetchTokenFromServer()
+            }
 
             if (token != null) {
                 storeToken(token)
@@ -196,7 +203,7 @@ class ZentaoRepository : NewBaseRepositoryImpl {
             val md = MessageDigest.getInstance("SHA-256")
             val bytes = md.digest(input.toByteArray(Charsets.UTF_8))
             bytes.joinToString(separator = "") { b -> "%02x".format(b) }
-        } catch (t: Throwable) {
+        } catch (_: Throwable) {
             // Fall back to plain concatenation (memory only), do not log
             input
         }
@@ -245,12 +252,12 @@ class ZentaoRepository : NewBaseRepositoryImpl {
             @Throws(Exception::class)
             override fun doTest() {
                 try {
-                    // During connection test, always generate a fresh token from current username/password
-                    // to avoid using outdated cached token
+                    // During the connection test, always generate a fresh token from the current username / password
+                    // to avoid using an outdated cached token
                     clearStoredToken()
                     val newToken = generateAndStoreToken(force = true)
 
-                    // If token cannot be generated from current input, fail immediately (keep server-side error message)
+                    // If the token cannot be generated from the current input, fail immediately (keep a server-side error message)
                     if (newToken.isNullOrBlank()) {
                         throw IllegalStateException(ZentaoResponseUtil.withErrorPrefix("Failed to generate token with current credentials"))
                     }
