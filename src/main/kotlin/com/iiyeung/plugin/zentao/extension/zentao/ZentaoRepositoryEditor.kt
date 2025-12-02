@@ -9,7 +9,7 @@ import com.intellij.tasks.config.BaseRepositoryEditor
 import com.intellij.tasks.impl.TaskUiUtil
 import com.intellij.util.Consumer
 import com.intellij.util.ui.FormBuilder
-import java.net.URL
+import java.net.URI
 import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.event.DocumentEvent
@@ -59,8 +59,8 @@ class ZentaoRepositoryEditor : BaseRepositoryEditor<ZentaoRepository> {
         val trimmed = text.trim()
         if (!(trimmed.startsWith("http://") || trimmed.startsWith("https://"))) return false
         return try {
-            val url = URL(trimmed)
-            !url.host.isNullOrBlank()
+            val uri = URI(trimmed)
+            !uri.host.isNullOrBlank()
         } catch (_: Exception) {
             false
         }
