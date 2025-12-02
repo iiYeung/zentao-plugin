@@ -3,7 +3,6 @@ package com.iiyeung.plugin.zentao.extension.zentao
 import com.google.gson.Gson
 import com.iiyeung.plugin.zentao.common.ApiConfig
 import com.iiyeung.plugin.zentao.common.Constants
-import com.iiyeung.plugin.zentao.common.UnauthorizedException
 import com.iiyeung.plugin.zentao.extension.zentao.model.*
 import com.iiyeung.plugin.zentao.util.ZentaoResponseUtil
 import com.intellij.credentialStore.CredentialAttributes
@@ -209,20 +208,6 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         }
     }
 
-    /**
-     * Refresh token
-     */
-    private fun refreshTokenIfNeeded(): Boolean {
-        return try {
-            clearStoredToken()
-            val newToken = generateAndStoreToken()
-            newToken != null
-        } catch (e: Exception) {
-            thisLogger().warn("Failed to refresh token", e)
-            false
-        }
-    }
-
     // ========== HTTP request interceptor ==========
 
     override fun createRequestInterceptor(): HttpRequestInterceptor {
@@ -266,10 +251,8 @@ class ZentaoRepository : NewBaseRepositoryImpl {
                 } catch (e: Exception) {
                     // Connection test: do not show notification; throw a single prefixed IllegalStateException
                     val message = ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString())
-                    // For 401 still log only (no notification)
-                    if (e is UnauthorizedException) {
-                        thisLogger().warn(message)
-                    }
+                    // Log for any error; no special handling for 401
+                    thisLogger().warn(message)
                     throw IllegalStateException(message)
                 }
             }
@@ -318,15 +301,11 @@ class ZentaoRepository : NewBaseRepositoryImpl {
             val page: ZentaoBugPage? = httpClient.execute(HttpGet(urlBuild), handler)
             extractBugsFromPage(page)
         } catch (e: Exception) {
-            // No retry; do not notify for 401 (log only); notify and rethrow for other errors
-            if (e is UnauthorizedException) {
-                thisLogger().warn(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()))
-            } else {
-                NotificationGroupManager.getInstance()
-                    .getNotificationGroup("Zentao Notifications")
-                    .createNotification(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()), NotificationType.ERROR)
-                    .notify(null)
-            }
+            // Notify all errors, including 401 Unauthorized
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("Zentao Notifications")
+                .createNotification(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()), NotificationType.ERROR)
+                .notify(null)
             throw e
         }
     }
@@ -365,15 +344,11 @@ class ZentaoRepository : NewBaseRepositoryImpl {
             val page: ZentaoProductPage? = httpClient.execute(HttpGet(urlBuild), handler)
             extractProductsFromPage(page)
         } catch (e: Exception) {
-            // No retry; do not notify for 401 (log only); notify and rethrow for other errors
-            if (e is UnauthorizedException) {
-                thisLogger().warn(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()))
-            } else {
-                NotificationGroupManager.getInstance()
-                    .getNotificationGroup("Zentao Notifications")
-                    .createNotification(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()), NotificationType.ERROR)
-                    .notify(null)
-            }
+            // Notify all errors, including 401 Unauthorized
+            NotificationGroupManager.getInstance()
+                .getNotificationGroup("Zentao Notifications")
+                .createNotification(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()), NotificationType.ERROR)
+                .notify(null)
             throw e
         }
     }
