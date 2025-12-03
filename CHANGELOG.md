@@ -1,6 +1,11 @@
 <!-- Keep a Changelog guide -> https://keepachangelog.com -->
 
 # zentao-plugin Changelog
+## [1.0.5]
+### Features
+- Support for IntelliJ 2025.3
+
+
 ## [1.0.4]
 ### Features
 - Support for IntelliJ 2025.1

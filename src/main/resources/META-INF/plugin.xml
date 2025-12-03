@@ -1,20 +1,21 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
-<idea-plugin>
+<idea-plugin require-restart="false">
     <id>com.iiyeung.plugin.zentao</id>
-    <name>Zentao Integration</name>
+    <name>Zentao</name>
     <vendor email="ii.yeung@foxmail.com" url="https://github.com/iiYeung">ii.Yeung</vendor>
+    <idea-version since-build="231.0" until-build="253.*"/>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.tasks</depends>
 
     <resource-bundle>messages.ZentaoBundle</resource-bundle>
 
-<!--    <extensions defaultExtensionNs="com.intellij">-->
-<!--        <toolWindow factoryClass="com.github.darylyeung.zentaoplugin.toolWindow.MyToolWindowFactory" id="zentao"/>-->
-<!--    </extensions>-->
-
     <extensions defaultExtensionNs="com.intellij.tasks">
         <repositoryType implementation="com.iiyeung.plugin.zentao.extension.zentao.ZentaoRepositoryType"/>
+    </extensions>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup id="Zentao Notifications" displayType="BALLOON" isLogByDefault="true"/>
     </extensions>
 
     <applicationListeners>
