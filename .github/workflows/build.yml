@@ -242,5 +242,5 @@ jobs:
 
           gh release create $VERSION \
             --draft \
-            --title $VERSION \
+            --title ${VERSION}-RELEASE \
             --notes-file $RELEASE_NOTE

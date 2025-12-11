@@ -20,6 +20,7 @@ import com.intellij.util.containers.ContainerUtil
 import com.intellij.util.xmlb.annotations.Tag
 import org.apache.http.HttpRequestInterceptor
 import org.apache.http.client.methods.HttpGet
+import org.apache.http.client.methods.HttpUriRequest
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.client.utils.URIBuilder
 import org.apache.http.entity.ContentType
@@ -297,17 +298,8 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         val urlBuild = URIBuilder(url).addParameter("limit", "1000").build()
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoBugPage::class.java)
 
-        return try {
-            val page: ZentaoBugPage? = httpClient.execute(HttpGet(urlBuild), handler)
-            extractBugsFromPage(page)
-        } catch (e: Exception) {
-            // Notify all errors, including 401 Unauthorized
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("Zentao Notifications")
-                .createNotification(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()), NotificationType.ERROR)
-                .notify(null)
-            throw e
-        }
+        val page: ZentaoBugPage? = executeRequestWithTokenRefresh(HttpGet(urlBuild), handler)
+        return extractBugsFromPage(page)
     }
 
     private fun extractBugsFromPage(page: ZentaoBugPage?): List<ZentaoBug> {
@@ -340,17 +332,8 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         val urlBuild = URIBuilder(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS)).addParameter("limit", "1000").build()
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(gson = Gson(), ZentaoProductPage::class.java)
 
-        return try {
-            val page: ZentaoProductPage? = httpClient.execute(HttpGet(urlBuild), handler)
-            extractProductsFromPage(page)
-        } catch (e: Exception) {
-            // Notify all errors, including 401 Unauthorized
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("Zentao Notifications")
-                .createNotification(ZentaoResponseUtil.withErrorPrefix(e.message ?: e.toString()), NotificationType.ERROR)
-                .notify(null)
-            throw e
-        }
+        val page: ZentaoProductPage? = executeRequestWithTokenRefresh(HttpGet(urlBuild), handler)
+        return extractProductsFromPage(page)
     }
 
     private fun extractProductsFromPage(page: ZentaoProductPage?): List<ZentaoProduct> {
@@ -370,13 +353,40 @@ class ZentaoRepository : NewBaseRepositoryImpl {
         val urlBuild = URIBuilder(getRestApiUrl(ApiConfig.Endpoints.USER)).build()
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(Gson(), ZentaoUserDetail::class.java)
 
+        val user: ZentaoUserDetail? = executeRequestWithTokenRefresh(HttpGet(urlBuild), handler)
+        thisLogger().info("Fetch user successful. Response: $user")
+    }
+
+    /**
+     * Executes an HTTP request and handles token expiration (401) by attempting to refresh the token and retry.
+     *
+     * @param request The HTTP request to execute.
+     * @param handler The response handler.
+     * @return The deserialized response object, or null.
+     * @throws Exception if the request fails even after a retry attempt.
+     */
+    @Throws(Exception::class)
+    private fun <T> executeRequestWithTokenRefresh(request: HttpUriRequest, handler: ZentaoResponseUtil.GsonSingleObjectDeserializer<T>): T? {
         try {
-            val user = httpClient.execute(HttpGet(urlBuild), handler)
-            thisLogger().info("Fetch user successful. Response: $user")
+            return httpClient.execute(request, handler)
         } catch (e: Exception) {
-            thisLogger().warn("Failed to fetch user", e)
+            // Check if the error is due to an invalid token (e.g., HTTP 401)
+            val message = e.message.orEmpty()
+            if (message.contains("401") || message.contains("Unauthorized")) {
+                thisLogger().warn("Request failed with 401, attempting to refresh token and retry.", e)
+                clearStoredToken()
+                val newToken = generateAndStoreToken(force = true)
+                if (newToken.isNullOrBlank()) {
+                    thisLogger().warn("Failed to generate a new token after 401. Aborting retry.")
+                    throw IllegalStateException(ZentaoResponseUtil.withErrorPrefix("Token expired and failed to refresh."), e)
+                }
+                thisLogger().info("Token refreshed successfully. Retrying the original request.")
+                // The interceptor will add the new token on the retry
+                return httpClient.execute(request, handler)
+            }
+            // For other errors, rethrow immediately
+            thisLogger().warn("Request failed with a non-401 error.", e)
             throw e
         }
     }
-
 }
