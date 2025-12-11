@@ -197,7 +197,7 @@ jobs:
 
       # Run Verify Plugin task and IntelliJ Plugin Verifier tool
       - name: Run Plugin Verification tasks
-        run: ./gradlew --no-configuration-cache verifyPlugin
+        run: ./gradlew verifyPlugin
 
       # Collect Plugin Verifier Result
       - name: Collect Plugin Verifier Result
