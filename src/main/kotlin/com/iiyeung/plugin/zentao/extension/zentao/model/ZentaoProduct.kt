@@ -47,5 +47,5 @@ data class ZentaoProduct(
     val fixedBugs: Int,
     val thisWeekBugs: Int,
     val assignToNull: Int,
-    val progress: Int,
+    val progress: Double,
 )

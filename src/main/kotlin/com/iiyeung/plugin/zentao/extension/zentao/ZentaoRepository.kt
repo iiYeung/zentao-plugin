@@ -4,12 +4,11 @@ import com.google.gson.Gson
 import com.iiyeung.plugin.zentao.common.ApiConfig
 import com.iiyeung.plugin.zentao.common.Constants
 import com.iiyeung.plugin.zentao.extension.zentao.model.*
+import com.iiyeung.plugin.zentao.service.ExpirationCheckService
 import com.iiyeung.plugin.zentao.util.ZentaoResponseUtil
 import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
 import com.intellij.ide.passwordSafe.PasswordSafe
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.progress.ProgressManager
@@ -20,8 +19,8 @@ import com.intellij.util.containers.ContainerUtil
 import com.intellij.util.xmlb.annotations.Tag
 import org.apache.http.HttpRequestInterceptor
 import org.apache.http.client.methods.HttpGet
-import org.apache.http.client.methods.HttpUriRequest
 import org.apache.http.client.methods.HttpPost
+import org.apache.http.client.methods.HttpUriRequest
 import org.apache.http.client.utils.URIBuilder
 import org.apache.http.entity.ContentType
 import org.apache.http.entity.StringEntity
@@ -276,12 +275,28 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     @Throws(Exception::class)
     override fun getIssues(query: String?, offset: Int, limit: Int, withClosed: Boolean): Array<out ZentaoTask> {
+        // 检查插件是否过期
+        val expirationService = ExpirationCheckService.getInstance()
+        if (!expirationService.validateAndNotify(null)) {
+            // 插件已过期，返回空数组并阻止功能使用
+            thisLogger().warn("Plugin expired, blocking getIssues operation")
+            return emptyArray()
+        }
+
         val bugs = fetchBugs()
         return ContainerUtil.map2Array(bugs, ZentaoTask::class.java) { issue -> ZentaoTask(this, issue) }
     }
 
     @Throws(Exception::class)
     private fun fetchBugs(): List<ZentaoBug> {
+        // 检查插件是否过期
+        val expirationService = ExpirationCheckService.getInstance()
+        if (!expirationService.validateAndNotify(null)) {
+            // 插件已过期，返回空列表并阻止功能使用
+            thisLogger().warn("Plugin expired, blocking fetchBugs operation")
+            return emptyList()
+        }
+
         val bugs = mutableListOf<ZentaoBug>()
         ensureProjectsDiscovered()
         if (myCurrentProduct != null) {
@@ -311,6 +326,14 @@ class ZentaoRepository : NewBaseRepositoryImpl {
     }
 
     fun getProducts(): List<ZentaoProduct> {
+        // 检查插件是否过期
+        val expirationService = ExpirationCheckService.getInstance()
+        if (!expirationService.validateAndNotify(null)) {
+            // 插件已过期，返回空列表并阻止功能使用
+            thisLogger().warn("Plugin expired, blocking getProducts operation")
+            return emptyList()
+        }
+
         // Do not swallow exceptions: ensure callers receive failures
         ensureProjectsDiscovered()
         return myProducts.orEmpty()
@@ -329,6 +352,14 @@ class ZentaoRepository : NewBaseRepositoryImpl {
 
     @Throws(Exception::class)
     fun fetchProducts(): List<ZentaoProduct> {
+        // 检查插件是否过期
+        val expirationService = ExpirationCheckService.getInstance()
+        if (!expirationService.validateAndNotify(null)) {
+            // 插件已过期，抛出异常阻止功能使用
+            thisLogger().warn("Plugin expired, blocking fetchProducts operation")
+            throw IllegalStateException("Zentao Plugin Preview 已过期，功能已被禁用")
+        }
+
         val urlBuild = URIBuilder(getRestApiUrl(ApiConfig.Endpoints.PRODUCTS)).addParameter("limit", "1000").build()
         val handler = ZentaoResponseUtil.GsonSingleObjectDeserializer(gson = Gson(), ZentaoProductPage::class.java)
 

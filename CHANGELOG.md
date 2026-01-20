@@ -2,6 +2,12 @@
 
 # zentao-plugin Changelog
 
+## [1.0.7-preview]
+
+### Fixed
+
+- fix fetch Product's bug
+
 ## [1.0.6]
 
 ### Fixed
